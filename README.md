@@ -45,7 +45,7 @@ Everything lives in `localStorage` under three keys, wrapped by `src/storage.js`
 | `wk-profile` | chosen exercises + where he is in the 2-week rotation |
 | `wk-days`    | per-day habit flags (workout, cardio, food)          |
 | `wk-lifts`   | per-exercise set history, last 60 sets each          |
-| `ppl-profile`| chosen exercises, goal, and place in the 4-day cycle |
+| `ppl-profile`| chosen exercises, any added by hand, goal, and place in the 4-day cycle |
 | `ppl-days`   | per-day flags (workout, eat, cardio)                |
 | `ppl-lifts`  | per-exercise set history, last 60 sets each         |
 | `ppl-weight` | one body-weight reading per day, for the graph      |

@@ -145,14 +145,17 @@ const dayNum = (iso) => {
 
 const shortDate = (iso) => `${iso.slice(8)}/${iso.slice(5, 7)}`;
 
+/* The built-in list for a muscle group plus anything added on the phone. */
+const listFor = (g, custom) => [...LIBRARY[g], ...((custom && custom[g]) || [])];
+
 /* Every exercise ticked for a muscle group is in the session — not one of them.
-   Library order, so the session doesn't reshuffle when a choice is toggled. */
-function buildSession(pos, picks) {
+   List order, so the session doesn't reshuffle when a choice is toggled. */
+function buildSession(pos, picks, custom) {
   const spec = CYCLE[pos - 1];
   const items = [];
   spec.groups.forEach((g) => {
     const chosen = picks[g] || [];
-    LIBRARY[g].forEach((name) => {
+    listFor(g, custom).forEach((name) => {
       if (chosen.includes(name)) items.push({ group: g, name, sets: SETS });
     });
   });
@@ -1126,6 +1129,67 @@ function ReportScreen({ blocks, goal, onBack }) {
   );
 }
 
+/* ============================ add an exercise ============================ */
+
+function AddExercise({ group, existing, onAdd }) {
+  const [text, setText] = useState("");
+  const name = text.trim().replace(/\s+/g, " ");
+  const clash = existing.some((n) => n.toLowerCase() === name.toLowerCase());
+  const valid = name.length > 1 && name.length <= 40 && !clash;
+
+  return (
+    <div style={{ marginTop: 4 }}>
+      <div style={{ display: "flex", gap: 6 }}>
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && valid) {
+              onAdd(name);
+              setText("");
+            }
+          }}
+          placeholder={`Add a ${GROUP_NAMES[group].toLowerCase()} exercise`}
+          aria-label={`Add a ${GROUP_NAMES[group].toLowerCase()} exercise`}
+          maxLength={40}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            border: `3px solid ${RULE}`,
+            padding: "12px 10px",
+            fontSize: 16,
+            fontFamily: BODY,
+            color: INK,
+            background: "#fff",
+            outline: "none",
+          }}
+        />
+        <Btn
+          onClick={() => {
+            if (!valid) return;
+            onAdd(name);
+            setText("");
+          }}
+          style={{
+            padding: "0 16px",
+            fontSize: 16,
+            background: valid ? PUSH_C : WASH,
+            color: valid ? "#fff" : MUTE,
+            flexShrink: 0,
+          }}
+        >
+          Add
+        </Btn>
+      </div>
+      {clash && (
+        <div style={{ fontSize: 13, color: MUTE, marginTop: 5 }}>
+          That one is already on the list.
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ============================ weight entry ============================ */
 
 function WeightCard({ todayKg, lastKg, onSave }) {
@@ -1220,6 +1284,7 @@ export default function PPLHub() {
 
   const profile = loadJSON("ppl-profile", {});
   const [picks, setPicks] = useState(profile.picks || DEFAULT_PICKS);
+  const [custom, setCustom] = useState(profile.custom || {});
   /* positions 5-7 exist only in the old seven-day rotation; fold them back in */
   const [pos, setPos] = useState(((profile.pos || 1) - 1) % CYCLE_LEN + 1);
   const [goal, setGoal] = useState(profile.goal || "maintain");
@@ -1258,16 +1323,31 @@ export default function PPLHub() {
   };
 
   const saveProfile = (next) => {
-    const merged = { picks, pos, goal, ...next };
+    const merged = { picks, pos, goal, custom, ...next };
     if (next.picks) setPicks(next.picks);
     if (next.pos) setPos(next.pos);
     if (next.goal) setGoal(next.goal);
+    if (next.custom) setCustom(next.custom);
     persist("ppl-profile", merged);
   };
 
+  /* a new exercise goes on the list and is ticked straight away */
+  const addExercise = (g, name) =>
+    saveProfile({
+      custom: { ...custom, [g]: [...(custom[g] || []), name] },
+      picks: { ...picks, [g]: [...(picks[g] || []), name] },
+    });
+
+  /* only ones added here can be taken off again; any logged history stays */
+  const removeExercise = (g, name) =>
+    saveProfile({
+      custom: { ...custom, [g]: (custom[g] || []).filter((n) => n !== name) },
+      picks: { ...picks, [g]: (picks[g] || []).filter((n) => n !== name) },
+    });
+
   const t = today();
   const flags = days[t] || {};
-  const session = buildSession(pos, picks);
+  const session = buildSession(pos, picks, custom);
   const isRest = session.key === "rest";
   const cardioOn = cardioDue(goal, pos);
 
@@ -1301,7 +1381,7 @@ export default function PPLHub() {
 
     persist("ppl-lifts", nextLifts);
     persist("ppl-days", nextDays);
-    persist("ppl-profile", { picks, pos: nextPos, goal });
+    persist("ppl-profile", { picks, pos: nextPos, goal, custom });
   };
 
   const saved = loadJSON("ppl-reports", {});
@@ -1950,7 +2030,7 @@ export default function PPLHub() {
               <SectionLabel style={{ marginBottom: 10 }}>
                 My exercises &middot; tap the ones you use
               </SectionLabel>
-              {Object.entries(LIBRARY).map(([g, list]) => (
+              {Object.keys(LIBRARY).map((g) => (
                 <div key={g} style={{ marginBottom: 20 }}>
                   <div
                     style={{
@@ -1966,35 +2046,65 @@ export default function PPLHub() {
                   >
                     {GROUP_NAMES[g]}
                   </div>
-                  {list.map((name) => {
+                  {listFor(g, custom).map((name) => {
                     const on = (picks[g] || []).includes(name);
+                    const mine = (custom[g] || []).includes(name);
+                    const toggle = () => {
+                      const cur = picks[g] || [];
+                      saveProfile({
+                        picks: {
+                          ...picks,
+                          [g]: on ? cur.filter((n) => n !== name) : [...cur, name],
+                        },
+                      });
+                    };
+                    /* two separate buttons, never one inside the other */
                     return (
-                      <Btn
-                        key={name}
-                        onClick={() => {
-                          const cur = picks[g] || [];
-                          const next = on ? cur.filter((n) => n !== name) : [...cur, name];
-                          saveProfile({ picks: { ...picks, [g]: next } });
-                        }}
-                        style={{
-                          width: "100%",
-                          textAlign: "left",
-                          padding: "13px 12px",
-                          marginBottom: 6,
-                          fontSize: 18,
-                          background: on ? INK : "#fff",
-                          color: on ? "#fff" : INK,
-                          border: `3px solid ${on ? INK : RULE}`,
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
-                      >
-                        <span>{name}</span>
-                        <span style={{ fontSize: 22 }}>{on ? "✓" : ""}</span>
-                      </Btn>
+                      <div key={name} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                        <Btn
+                          onClick={toggle}
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            textAlign: "left",
+                            padding: "13px 12px",
+                            fontSize: 18,
+                            background: on ? INK : "#fff",
+                            color: on ? "#fff" : INK,
+                            border: `3px solid ${on ? INK : RULE}`,
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
+                        >
+                          <span>{name}</span>
+                          <span style={{ fontSize: 22 }}>{on ? "✓" : ""}</span>
+                        </Btn>
+                        {mine && (
+                          <Btn
+                            aria={`Remove ${name}`}
+                            onClick={() => removeExercise(g, name)}
+                            style={{
+                              width: 52,
+                              flexShrink: 0,
+                              fontSize: 20,
+                              background: "#fff",
+                              color: MUTE,
+                              border: `3px solid ${RULE}`,
+                            }}
+                          >
+                            ×
+                          </Btn>
+                        )}
+                      </div>
                     );
                   })}
+                  <AddExercise
+                    group={g}
+                    existing={listFor(g, custom)}
+                    onAdd={(name) => addExercise(g, name)}
+                  />
                 </div>
               ))}
             </div>

@@ -115,10 +115,13 @@ const dayLetter = (iso) => {
   return ["S", "M", "T", "W", "T", "F", "S"][new Date(y, m - 1, d).getDay()];
 };
 
+/* The built-in list for a muscle group plus anything added on the phone. */
+const listFor = (g, custom) => [...LIBRARY[g], ...((custom && custom[g]) || [])];
+
 /* Every exercise ticked for a muscle group is in the session — not one of them.
-   Library order, so the session doesn't reshuffle when a choice is toggled. The
+   List order, so the session doesn't reshuffle when a choice is toggled. The
    set count is still the group's: each exercise gets it. */
-function buildSession(week, day, picks) {
+function buildSession(week, day, picks, custom) {
   const spec = PLAN[week][day];
   const hardRules = week === 1 || spec.week1Rules;
   const groups = [...spec.groups, "abs"];
@@ -127,7 +130,7 @@ function buildSession(week, day, picks) {
   groups.forEach((g) => {
     const chosen = picks[g] || [];
     const sets = hardRules ? 3 : FOCUS.includes(g) ? 2 : 1;
-    LIBRARY[g].forEach((name) => {
+    listFor(g, custom).forEach((name) => {
       if (chosen.includes(name)) items.push({ group: g, name, sets });
     });
   });
@@ -246,6 +249,67 @@ function Stepper({ label, value, unit, onChange, step, min }) {
           +
         </Btn>
       </div>
+    </div>
+  );
+}
+
+/* ============================ add an exercise ============================ */
+
+function AddExercise({ group, existing, onAdd }) {
+  const [text, setText] = useState("");
+  const name = text.trim().replace(/\s+/g, " ");
+  const clash = existing.some((n) => n.toLowerCase() === name.toLowerCase());
+  const valid = name.length > 1 && name.length <= 40 && !clash;
+
+  return (
+    <div style={{ marginTop: 4 }}>
+      <div style={{ display: "flex", gap: 6 }}>
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && valid) {
+              onAdd(name);
+              setText("");
+            }
+          }}
+          placeholder={`Add a ${GROUP_NAMES[group].toLowerCase()} exercise`}
+          aria-label={`Add a ${GROUP_NAMES[group].toLowerCase()} exercise`}
+          maxLength={40}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            border: `3px solid ${RULE}`,
+            padding: "12px 10px",
+            fontSize: 16,
+            fontFamily: BODY,
+            color: INK,
+            background: "#fff",
+            outline: "none",
+          }}
+        />
+        <Btn
+          onClick={() => {
+            if (!valid) return;
+            onAdd(name);
+            setText("");
+          }}
+          style={{
+            padding: "0 16px",
+            fontSize: 16,
+            background: valid ? PUSH : WASH,
+            color: valid ? "#fff" : MUTE,
+            flexShrink: 0,
+          }}
+        >
+          Add
+        </Btn>
+      </div>
+      {clash && (
+        <div style={{ fontSize: 13, color: MUTE, marginTop: 5 }}>
+          That one is already on the list.
+        </div>
+      )}
     </div>
   );
 }
@@ -670,6 +734,7 @@ export default function WorkoutHub() {
   /* ---- load (localStorage is synchronous, so read it up front) ---- */
   const profile = loadJSON("wk-profile", {});
   const [picks, setPicks] = useState(profile.picks || DEFAULT_PICKS);
+  const [custom, setCustom] = useState(profile.custom || {});
   const [pos, setPos] = useState(profile.pos || { week: 1, day: 1 });
   const [days, setDays] = useState(() => loadJSON("wk-days", {}));
   const [lifts, setLifts] = useState(() => loadJSON("wk-lifts", {}));
@@ -684,11 +749,26 @@ export default function WorkoutHub() {
     }
   };
 
-  const saveProfile = (nextPicks, nextPos) => {
+  const saveProfile = (nextPicks, nextPos, nextCustom = custom) => {
     setPicks(nextPicks);
     setPos(nextPos);
-    persist("wk-profile", { picks: nextPicks, pos: nextPos });
+    setCustom(nextCustom);
+    persist("wk-profile", { picks: nextPicks, pos: nextPos, custom: nextCustom });
   };
+
+  /* a new exercise goes on the list and is ticked straight away */
+  const addExercise = (g, name) =>
+    saveProfile({ ...picks, [g]: [...(picks[g] || []), name] }, pos, {
+      ...custom,
+      [g]: [...(custom[g] || []), name],
+    });
+
+  /* only ones added here can be taken off again; any logged history stays */
+  const removeExercise = (g, name) =>
+    saveProfile({ ...picks, [g]: (picks[g] || []).filter((n) => n !== name) }, pos, {
+      ...custom,
+      [g]: (custom[g] || []).filter((n) => n !== name),
+    });
 
   const t = today();
   const flags = days[t] || {};
@@ -699,7 +779,7 @@ export default function WorkoutHub() {
     persist("wk-days", next);
   };
 
-  const session = buildSession(pos.week, pos.day, picks);
+  const session = buildSession(pos.week, pos.day, picks, custom);
 
   const finishSession = (result) => {
     const nextLifts = { ...lifts };
@@ -719,7 +799,7 @@ export default function WorkoutHub() {
 
     persist("wk-lifts", nextLifts);
     persist("wk-days", nextDays);
-    persist("wk-profile", { picks, pos: nextPos });
+    persist("wk-profile", { picks, pos: nextPos, custom });
   };
 
   if (running) {
@@ -1158,12 +1238,12 @@ export default function WorkoutHub() {
               My exercises
             </div>
             <div style={{ fontSize: 15, fontWeight: 700, marginTop: 6 }}>
-              Tap the ones you use. The app builds every session from these.
+              Tap the ones he uses, or add your own. Every session is built from these.
             </div>
           </div>
 
           <div style={{ padding: "14px 16px 0" }}>
-            {Object.entries(LIBRARY).map(([g, list]) => (
+            {Object.keys(LIBRARY).map((g) => (
               <div key={g} style={{ marginBottom: 20 }}>
                 <div
                   style={{
@@ -1179,37 +1259,63 @@ export default function WorkoutHub() {
                 >
                   {GROUP_NAMES[g]}
                 </div>
-                {list.map((name) => {
+                {listFor(g, custom).map((name) => {
                   const on = (picks[g] || []).includes(name);
+                  const mine = (custom[g] || []).includes(name);
+                  const toggle = () => {
+                    const cur = picks[g] || [];
+                    saveProfile(
+                      { ...picks, [g]: on ? cur.filter((n) => n !== name) : [...cur, name] },
+                      pos
+                    );
+                  };
+                  /* two separate buttons, never one inside the other */
                   return (
-                    <Btn
-                      key={name}
-                      onClick={() => {
-                        const cur = picks[g] || [];
-                        const next = on
-                          ? cur.filter((n) => n !== name)
-                          : [...cur, name];
-                        saveProfile({ ...picks, [g]: next }, pos);
-                      }}
-                      style={{
-                        width: "100%",
-                        textAlign: "left",
-                        padding: "13px 12px",
-                        marginBottom: 6,
-                        fontSize: 18,
-                        background: on ? INK : "#fff",
-                        color: on ? "#fff" : INK,
-                        border: `3px solid ${on ? INK : RULE}`,
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <span>{name}</span>
-                      <span style={{ fontSize: 22 }}>{on ? "✓" : ""}</span>
-                    </Btn>
+                    <div key={name} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                      <Btn
+                        onClick={toggle}
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          textAlign: "left",
+                          padding: "13px 12px",
+                          fontSize: 18,
+                          background: on ? INK : "#fff",
+                          color: on ? "#fff" : INK,
+                          border: `3px solid ${on ? INK : RULE}`,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <span>{name}</span>
+                        <span style={{ fontSize: 22 }}>{on ? "✓" : ""}</span>
+                      </Btn>
+                      {mine && (
+                        <Btn
+                          aria={`Remove ${name}`}
+                          onClick={() => removeExercise(g, name)}
+                          style={{
+                            width: 52,
+                            flexShrink: 0,
+                            fontSize: 20,
+                            background: "#fff",
+                            color: MUTE,
+                            border: `3px solid ${RULE}`,
+                          }}
+                        >
+                          ×
+                        </Btn>
+                      )}
+                    </div>
                   );
                 })}
+                <AddExercise
+                  group={g}
+                  existing={listFor(g, custom)}
+                  onAdd={(name) => addExercise(g, name)}
+                />
               </div>
             ))}
 
