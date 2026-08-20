@@ -23,6 +23,10 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      # turns Pages on via the API, so it needn't be enabled by hand
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - run: npm ci
       - run: npm run build
         env:
