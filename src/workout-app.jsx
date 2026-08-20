@@ -110,6 +110,11 @@ const shiftDay = (iso, n) => {
   ).padStart(2, "0")}`;
 };
 
+const dayNum = (iso) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return Math.round(Date.UTC(y, m - 1, d) / 86400000);
+};
+
 const dayLetter = (iso) => {
   const [y, m, d] = iso.split("-").map(Number);
   return ["S", "M", "T", "W", "T", "F", "S"][new Date(y, m - 1, d).getDay()];
@@ -715,7 +720,7 @@ function ExerciseDetail({ name, hist, onBack }) {
 
         {sessions.length < 2 && (
           <div style={{ fontSize: 15, color: MUTE, lineHeight: 1.4, marginTop: 4 }}>
-            One session logged so far. The bars fill in as he goes.
+            One session logged so far. The bars fill in as you go.
           </div>
         )}
       </div>
@@ -827,6 +832,23 @@ export default function WorkoutHub() {
   const week7 = Array.from({ length: 7 }, (_, i) => shiftDay(t, -6 + i));
   const count = (k) => week7.filter((d) => days[d] && days[d][k]).length;
 
+  /* ---- keeping him honest: how long since the last one, how many lately ---- */
+  const workoutDays = Object.keys(days)
+    .filter((d) => days[d] && days[d].workout)
+    .sort();
+  const lastWorkout = workoutDays.length ? workoutDays[workoutDays.length - 1] : null;
+  const daysSince = lastWorkout ? dayNum(t) - dayNum(lastWorkout) : null;
+  const cutoff = shiftDay(t, -27);
+  const last28 = workoutDays.filter((d) => d >= cutoff).length;
+  /* three sessions a week is the plan, so a three-day gap is a real slip */
+  const slipping = daysSince !== null && daysSince >= 3;
+  const recency =
+    daysSince === 0
+      ? "Done today"
+      : daysSince === 1
+      ? "Last one yesterday"
+      : `Last one ${daysSince} days ago`;
+
   return (
     <div
       className="pad-nav"
@@ -900,6 +922,56 @@ export default function WorkoutHub() {
           </div>
 
           <div style={{ padding: "14px 16px 0" }}>
+            {daysSince === null ? (
+              <div
+                style={{
+                  background: HOLD,
+                  color: "#fff",
+                  padding: "12px 14px",
+                  marginBottom: 14,
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: DISPLAY,
+                    fontSize: 26,
+                    textTransform: "uppercase",
+                    letterSpacing: "-0.03em",
+                  }}
+                >
+                  Session one
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 700, marginTop: 3 }}>
+                  Nothing logged yet. Today is the one that starts it.
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  background: slipping ? PUSH : WIN,
+                  color: "#fff",
+                  padding: "12px 14px",
+                  marginBottom: 14,
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: DISPLAY,
+                    fontSize: 26,
+                    lineHeight: 1.05,
+                    textTransform: "uppercase",
+                    letterSpacing: "-0.03em",
+                  }}
+                >
+                  {slipping ? `${daysSince} days since your last session` : recency}
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 700, marginTop: 3 }}>
+                  {last28} session{last28 === 1 ? "" : "s"} in the last 4 weeks
+                  {slipping ? " · get one in today" : ""}
+                </div>
+              </div>
+            )}
+
             <div
               style={{
                 fontFamily: DISPLAY,
@@ -937,7 +1009,7 @@ export default function WorkoutHub() {
               >
                 <div style={{ fontSize: 16, lineHeight: 1.35 }}>
                   Nothing ticked for today&rsquo;s muscle groups. Open{" "}
-                  <strong>Exercises</strong> and choose the ones he uses.
+                  <strong>Exercises</strong> and choose the ones you use.
                 </div>
               </div>
             ) : (
@@ -1238,7 +1310,7 @@ export default function WorkoutHub() {
               My exercises
             </div>
             <div style={{ fontSize: 15, fontWeight: 700, marginTop: 6 }}>
-              Tap the ones he uses, or add your own. Every session is built from these.
+              Tap the ones you use, or add your own. Every session is built from these.
             </div>
           </div>
 
