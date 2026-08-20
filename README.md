@@ -99,9 +99,9 @@ plan and its own look (navy and blue, a plate icon, colour-coded day types).
 Every exercise is 3 sets of 6–12 reps to failure; the overload target adds a rep
 to 12, then +2.5 kg and back to 6.
 
-The goal drives cardio only: **bulk** none, **cut** daily, **maintain** Monday
-to Friday. The rotation is four days, so it drifts through the week — which is
-why "five a week" keys off the date rather than the cycle position.
+The goal drives cardio only: **bulk** none, **cut** every day, **maintain**
+every training day (so it skips the rest day) — three days in four, about five
+a week.
 
 ## Icons
 

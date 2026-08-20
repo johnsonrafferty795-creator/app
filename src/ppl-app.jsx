@@ -90,32 +90,36 @@ const REST_DAY = { key: "rest", label: "Rest", groups: [], color: REST_C };
    through the week rather than landing on a fixed day. */
 const CYCLE = [PUSH_DAY, PULL_DAY, LEGS_DAY, REST_DAY];
 const CYCLE_LEN = CYCLE.length;
-/* three training days in every four: about five a week */
+/* three training days in every four: about five a week, and exactly 21 in a
+   28-day block */
 const SESSIONS_PER_WEEK = 5;
+const SESSIONS_PER_BLOCK = 21;
 
 const SETS = 3;
 const REP_LOW = 6;
 const REP_HIGH = 12;
 
+/* a report block: four weeks */
+const BLOCK = 28;
+
+/* days: how many cardio days a seven-day stretch should hold, for the weekly
+   tile. perBlock: the same over a 28-day report block — three training days in
+   every four is 21, not 20, so it is spelled out rather than multiplied. */
 const GOALS = {
-  bulk: { label: "Bulk", cardio: "No cardio", days: 0 },
-  cut: { label: "Cut", cardio: "Cardio every day", days: 7 },
-  maintain: { label: "Maintain", cardio: "Cardio Monday to Friday", days: 5 },
+  bulk: { label: "Bulk", cardio: "No cardio", days: 0, perBlock: 0 },
+  cut: { label: "Cut", cardio: "Cardio every day", days: 7, perBlock: BLOCK },
+  maintain: {
+    label: "Maintain",
+    cardio: "Cardio every day except the rest day",
+    days: 5,
+    perBlock: 21,
+  },
 };
 
-/* Cut = every day. Bulk = never. Maintain = five a week, and since a four-day
-   rotation drifts through the week that has to key off the date, not the cycle:
-   Monday to Friday, weekends clear. */
-const weekday = (iso) => {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y, m - 1, d).getDay();
-};
-const cardioDue = (goal, iso) =>
-  goal === "cut"
-    ? true
-    : goal === "maintain"
-    ? weekday(iso) >= 1 && weekday(iso) <= 5
-    : false;
+/* Cut = every day. Bulk = never. Maintain = every training day, so it follows
+   the rotation and skips only the rest day. */
+const cardioDue = (goal, pos) =>
+  goal === "cut" ? true : goal === "maintain" ? CYCLE[pos - 1].key !== "rest" : false;
 
 /* ============================ helpers ============================ */
 
@@ -176,8 +180,6 @@ const nextTarget = (best) => {
  * summarised the moment it closes and written to ppl-reports, so old numbers
  * stay put even once the rolling per-exercise history has scrolled past them.
  */
-const BLOCK = 28;
-
 const dataDates = (days, lifts, weights) => {
   const seen = new Set([...Object.keys(days || {}), ...Object.keys(weights || {})]);
   Object.values(lifts || {}).forEach((h) => h.forEach((e) => seen.add(e.d)));
@@ -220,10 +222,13 @@ function summariseBlock(i, start, end, days, lifts, weights, t) {
   });
   moves.sort((a, b) => b.step - a.step);
 
+  const elapsed = Math.min(BLOCK, Math.max(0, dayNum(t) - dayNum(start) + 1));
+
   return {
     i,
     start,
     end,
+    elapsed,
     complete: end < t,
     sessions: count("workout"),
     eat: count("eat"),
@@ -897,7 +902,7 @@ function WeightChart({ points, selected, onSelect }) {
 /* ============================ four-week report ============================ */
 
 function BlockCard({ b, goal }) {
-  const target = { sessions: SESSIONS_PER_WEEK * 4, eat: BLOCK, cardio: GOALS[goal].days * 4 };
+  const target = { sessions: SESSIONS_PER_BLOCK, eat: BLOCK, cardio: GOALS[goal].perBlock };
   const stat = (label, value, tgt) => (
     <div key={label} style={{ flex: 1, background: WASH, padding: "10px 6px", textAlign: "center" }}>
       <div style={{ fontFamily: DISPLAY, fontSize: 26, letterSpacing: "-0.02em" }}>
@@ -967,6 +972,51 @@ function BlockCard({ b, goal }) {
         {stat("Ate well", b.eat, target.eat)}
         {target.cardio ? stat("Cardio", b.cardio, target.cardio) : null}
       </div>
+
+      {(() => {
+        /* Only a finished block can be judged against a full four weeks — part
+           way through, "missed" would just be "not yet". */
+        if (!b.complete)
+          return (
+            <div style={{ fontSize: 14, color: MUTE, marginTop: 8, fontWeight: 700 }}>
+              Day {b.elapsed} of {BLOCK} — {BLOCK - b.elapsed} to go.
+            </div>
+          );
+        const missed = [
+          [Math.max(0, target.sessions - b.sessions), "sessions", "session"],
+          [Math.max(0, target.eat - b.eat), "days eating well", "day eating well"],
+          ...(target.cardio
+            ? [[Math.max(0, target.cardio - b.cardio), "cardio days", "cardio day"]]
+            : []),
+        ].filter(([n]) => n > 0);
+        return (
+          <div
+            style={{
+              marginTop: 8,
+              padding: "10px 12px",
+              background: missed.length ? WASH : "#EFF6F1",
+              borderLeft: `6px solid ${missed.length ? REST_C : WIN}`,
+              fontSize: 15,
+              fontWeight: 700,
+              lineHeight: 1.4,
+            }}
+          >
+            {missed.length ? (
+              <>
+                <span style={{ color: MUTE }}>Missed: </span>
+                {missed.map(([n, many, one], i) => (
+                  <span key={many}>
+                    {i ? " · " : ""}
+                    {n} {n === 1 ? one : many}
+                  </span>
+                ))}
+              </>
+            ) : (
+              "Hit every target — nothing missed."
+            )}
+          </div>
+        );
+      })()}
 
       <div
         style={{
@@ -1219,7 +1269,7 @@ export default function PPLHub() {
   const flags = days[t] || {};
   const session = buildSession(pos, picks);
   const isRest = session.key === "rest";
-  const cardioOn = cardioDue(goal, t);
+  const cardioOn = cardioDue(goal, pos);
 
   const toggleFlag = (k) => {
     const next = { ...days, [t]: { ...flags, [k]: !flags[k] } };
