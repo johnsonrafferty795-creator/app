@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 
 import { loadJSON, saveJSON } from "./storage";
+import {
+  buildBackup,
+  checkBackup,
+  readBackupFile,
+  restoreBackup,
+  saveBackup,
+  summarise,
+} from "./backup";
 
 /* ============================ constants ============================ */
 
@@ -90,9 +98,8 @@ const REST_DAY = { key: "rest", label: "Rest", groups: [], color: REST_C };
    through the week rather than landing on a fixed day. */
 const CYCLE = [PUSH_DAY, PULL_DAY, LEGS_DAY, REST_DAY];
 const CYCLE_LEN = CYCLE.length;
-/* three training days in every four: about five a week, and exactly 21 in a
-   28-day block */
-const SESSIONS_PER_WEEK = 5;
+/* three training days in every four: exactly 21 in a 28-day block. The weekly
+   figure is derived from logged rest days instead, so it can say five or six. */
 const SESSIONS_PER_BLOCK = 21;
 
 const SETS = 3;
@@ -1272,6 +1279,176 @@ function WeightCard({ todayKg, lastKg, onSave }) {
   );
 }
 
+/* ============================ backup ============================ */
+
+function BackupCard({ app, prefix, keys, accent }) {
+  const [stage, setStage] = useState("idle");
+  const [note, setNote] = useState("");
+  const [pending, setPending] = useState(null);
+
+  const filename = `${prefix}-backup-${today()}.json`;
+
+  const doExport = async () => {
+    const how = await saveBackup(buildBackup(app, keys), filename);
+    setNote(
+      how === "shared"
+        ? "Saved. Put it somewhere that is not this phone."
+        : how === "downloaded"
+        ? `Saved as ${filename}.`
+        : how === "cancelled"
+        ? ""
+        : "This phone would not let the app save a file."
+    );
+  };
+
+  const pickFile = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const payload = await readBackupFile(file);
+      const problem = checkBackup(payload, app, keys);
+      if (problem) {
+        setNote(problem);
+        setStage("idle");
+        return;
+      }
+      setPending(payload);
+      setNote("");
+      setStage("confirm");
+    } catch (err) {
+      setNote(err.message);
+      setStage("idle");
+    }
+  };
+
+  const confirmRestore = () => {
+    restoreBackup(pending, keys);
+    /* simplest way to be sure every screen reads the restored data */
+    window.location.reload();
+  };
+
+  const sum = pending ? summarise(pending, prefix) : null;
+
+  return (
+    <div style={{ borderTop: `4px solid ${INK}`, marginTop: 20, paddingTop: 14 }}>
+      <SectionLabel style={{ marginBottom: 8 }}>Backup</SectionLabel>
+      <div style={{ fontSize: 15, color: MUTE, lineHeight: 1.4, marginBottom: 10 }}>
+        Everything is stored on this phone and nowhere else. Save a copy now and
+        again — email it to yourself, drop it in Files, anywhere but here.
+      </div>
+
+      {stage !== "confirm" && (
+        <>
+          <Btn
+            onClick={doExport}
+            style={{
+              width: "100%",
+              padding: "16px 0",
+              fontSize: 18,
+              background: accent,
+              color: "#fff",
+            }}
+          >
+            Export a backup
+          </Btn>
+
+          <label
+            style={{
+              display: "block",
+              width: "100%",
+              marginTop: 8,
+              padding: "16px 0",
+              fontSize: 18,
+              fontFamily: DISPLAY,
+              letterSpacing: "-0.02em",
+              textTransform: "uppercase",
+              textAlign: "center",
+              background: "#fff",
+              color: INK,
+              border: `3px solid ${RULE}`,
+              cursor: "pointer",
+            }}
+          >
+            Restore from a file
+            <input
+              type="file"
+              accept="application/json,.json"
+              onChange={pickFile}
+              style={{ display: "none" }}
+            />
+          </label>
+        </>
+      )}
+
+      {stage === "confirm" && sum && (
+        <div style={{ border: `3px solid ${accent}`, padding: "12px 12px 14px" }}>
+          <div
+            style={{
+              fontFamily: DISPLAY,
+              fontSize: 20,
+              textTransform: "uppercase",
+              letterSpacing: "-0.03em",
+            }}
+          >
+            Replace everything on this phone?
+          </div>
+          <div style={{ fontSize: 15, marginTop: 6, lineHeight: 1.4 }}>
+            That file holds <strong>{sum.sessions}</strong> session
+            {sum.sessions === 1 ? "" : "s"}, <strong>{sum.exercises}</strong> exercise
+            {sum.exercises === 1 ? "" : "s"}
+            {sum.weighIns ? (
+              <>
+                {" "}
+                and <strong>{sum.weighIns}</strong> weigh-in
+                {sum.weighIns === 1 ? "" : "s"}
+              </>
+            ) : null}
+            {sum.exportedAt ? `, saved ${sum.exportedAt}` : ""}. What is on this phone
+            now will be written over and cannot be got back.
+          </div>
+          <Btn
+            onClick={confirmRestore}
+            style={{
+              width: "100%",
+              marginTop: 12,
+              padding: "16px 0",
+              fontSize: 18,
+              background: accent,
+              color: "#fff",
+            }}
+          >
+            Replace everything
+          </Btn>
+          <Btn
+            onClick={() => {
+              setStage("idle");
+              setPending(null);
+            }}
+            style={{
+              width: "100%",
+              marginTop: 8,
+              padding: "14px 0",
+              fontSize: 16,
+              background: "#fff",
+              color: INK,
+              border: `3px solid ${RULE}`,
+            }}
+          >
+            Cancel
+          </Btn>
+        </div>
+      )}
+
+      {note && (
+        <div style={{ fontSize: 14, fontWeight: 700, color: MUTE, marginTop: 8 }}>
+          {note}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ============================ main app ============================ */
 
 export default function PPLHub() {
@@ -1357,6 +1534,15 @@ export default function PPLHub() {
     persist("ppl-days", next);
   };
 
+  /* a rest day is marked as such, so nothing downstream reads it as a session
+     that was skipped */
+  const finishRestDay = () => {
+    const nextDays = { ...days, [t]: { ...flags, rest: true } };
+    setDays(nextDays);
+    persist("ppl-days", nextDays);
+    saveProfile({ pos: advance(pos) });
+  };
+
   const saveWeight = (kg) => {
     const next = { ...weights, [t]: kg };
     setWeights(next);
@@ -1412,6 +1598,12 @@ export default function PPLHub() {
 
   const week7 = Array.from({ length: 7 }, (_, i) => shiftDay(t, -6 + i));
   const count = (k) => week7.filter((d) => days[d] && days[d][k]).length;
+  /* Rest days are not misses, so they come off the week's target rather than
+     sitting there looking like sessions that never happened. Three training
+     days in every four means a week holds five or six of them, so that is the
+     range: a week with no rest day logged asks for six, not seven. */
+  const restThisWeek = week7.filter((d) => days[d] && days[d].rest).length;
+  const trainingTarget = Math.min(6, Math.max(4, 7 - restThisWeek));
 
   const wPoints = Object.entries(weights)
     .map(([d, kg]) => ({ d, kg }))
@@ -1518,7 +1710,7 @@ export default function PPLHub() {
                   roll the rotation on.
                 </div>
                 <Btn
-                  onClick={() => saveProfile({ pos: advance(pos) })}
+                  onClick={finishRestDay}
                   style={{
                     width: "100%",
                     marginTop: 12,
@@ -1702,9 +1894,11 @@ export default function PPLHub() {
 
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               {[
-                ["workout", "Sessions", SESSIONS_PER_WEEK],
+                ["workout", "Sessions", trainingTarget],
                 ["eat", "Ate well", 7],
-                ...(GOALS[goal].days ? [["cardio", "Cardio", GOALS[goal].days]] : []),
+                ...(GOALS[goal].days
+                  ? [["cardio", "Cardio", goal === "cut" ? 7 : trainingTarget]]
+                  : []),
               ].map(([k, label, target]) => {
                 const c = count(k);
                 const hit = c >= target;
@@ -1765,24 +1959,35 @@ export default function PPLHub() {
                     {Array.from({ length: 28 }, (_, i) => {
                       const d = shiftDay(t, -27 + i);
                       const on = days[d] && days[d][k];
+                      /* nothing was due on a rest day, bar the eating */
+                      const off = k !== "eat" && days[d] && days[d].rest && !on;
                       return (
                         <div
                           key={d}
-                          title={d}
+                          title={off ? `${d} · rest day` : d}
                           style={{
                             flex: 1,
                             height: 22,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
                             background: on ? WIN : WASH,
-                            border: `1px solid ${on ? WIN : RULE}`,
+                            border: `1px solid ${on ? WIN : off ? WASH : RULE}`,
+                            color: RULE,
+                            fontSize: 11,
+                            fontWeight: 800,
                           }}
-                        />
+                        >
+                          {off ? "–" : ""}
+                        </div>
                       );
                     })}
                   </div>
                 </div>
               ))}
               <div style={{ fontSize: 12, color: MUTE, marginTop: 4 }}>
-                Oldest on the left, today on the right.
+                Oldest on the left, today on the right. A dash is a rest day —
+                nothing was due, so nothing was missed.
               </div>
             </div>
 
@@ -2107,6 +2312,13 @@ export default function PPLHub() {
                   />
                 </div>
               ))}
+
+              <BackupCard
+                app="ppl"
+                prefix="ppl"
+                keys={["ppl-profile", "ppl-days", "ppl-lifts", "ppl-weight", "ppl-reports"]}
+                accent={PUSH_C}
+              />
             </div>
           </div>
         </div>

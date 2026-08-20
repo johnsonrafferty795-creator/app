@@ -112,3 +112,13 @@ only — a red dumbbell for one app, a blue plate for the other:
 python3 tools/make-icons.py
 python3 tools/make-ppl-icons.py
 ```
+
+## Backup
+
+Both apps keep everything on the one phone, so each has an **Export a backup**
+button — Plan tab in the PPL app, Exercises tab in the other. It writes a dated
+JSON file through the iOS share sheet, falling back to a download elsewhere.
+**Restore from a file** puts it back, after saying what the file holds and that
+the phone's current data is written over. A backup is stamped with the app it
+came from, since the two share an origin and would otherwise overwrite each
+other.

@@ -1,6 +1,14 @@
 import { useState } from "react";
 
 import { loadJSON, saveJSON } from "./storage";
+import {
+  buildBackup,
+  checkBackup,
+  readBackupFile,
+  restoreBackup,
+  saveBackup,
+  summarise,
+} from "./backup";
 
 /* ============================ constants ============================ */
 
@@ -728,6 +736,187 @@ function ExerciseDetail({ name, hist, onBack }) {
   );
 }
 
+/* ============================ backup ============================ */
+
+function BackupCard({ app, prefix, keys, accent }) {
+  const [stage, setStage] = useState("idle");
+  const [note, setNote] = useState("");
+  const [pending, setPending] = useState(null);
+
+  const filename = `${prefix}-backup-${today()}.json`;
+
+  const doExport = async () => {
+    const how = await saveBackup(buildBackup(app, keys), filename);
+    setNote(
+      how === "shared"
+        ? "Saved. Put it somewhere that is not this phone."
+        : how === "downloaded"
+        ? `Saved as ${filename}.`
+        : how === "cancelled"
+        ? ""
+        : "This phone would not let the app save a file."
+    );
+  };
+
+  const pickFile = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const payload = await readBackupFile(file);
+      const problem = checkBackup(payload, app, keys);
+      if (problem) {
+        setNote(problem);
+        setStage("idle");
+        return;
+      }
+      setPending(payload);
+      setNote("");
+      setStage("confirm");
+    } catch (err) {
+      setNote(err.message);
+      setStage("idle");
+    }
+  };
+
+  const confirmRestore = () => {
+    restoreBackup(pending, keys);
+    /* simplest way to be sure every screen reads the restored data */
+    window.location.reload();
+  };
+
+  const sum = pending ? summarise(pending, prefix) : null;
+
+  return (
+    <div style={{ borderTop: `4px solid ${INK}`, marginTop: 20, paddingTop: 14 }}>
+      <div
+        style={{
+          fontSize: 13,
+          fontWeight: 800,
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+          color: MUTE,
+          marginBottom: 8,
+        }}
+      >
+        Backup
+      </div>
+      <div style={{ fontSize: 15, color: MUTE, lineHeight: 1.4, marginBottom: 10 }}>
+        Everything is stored on this phone and nowhere else. Save a copy now and
+        again — email it to yourself, drop it in Files, anywhere but here.
+      </div>
+
+      {stage !== "confirm" && (
+        <>
+          <Btn
+            onClick={doExport}
+            style={{
+              width: "100%",
+              padding: "16px 0",
+              fontSize: 18,
+              background: accent,
+              color: "#fff",
+            }}
+          >
+            Export a backup
+          </Btn>
+
+          <label
+            style={{
+              display: "block",
+              width: "100%",
+              marginTop: 8,
+              padding: "16px 0",
+              fontSize: 18,
+              fontFamily: DISPLAY,
+              letterSpacing: "-0.02em",
+              textTransform: "uppercase",
+              textAlign: "center",
+              background: "#fff",
+              color: INK,
+              border: `3px solid ${RULE}`,
+              cursor: "pointer",
+            }}
+          >
+            Restore from a file
+            <input
+              type="file"
+              accept="application/json,.json"
+              onChange={pickFile}
+              style={{ display: "none" }}
+            />
+          </label>
+        </>
+      )}
+
+      {stage === "confirm" && sum && (
+        <div style={{ border: `3px solid ${accent}`, padding: "12px 12px 14px" }}>
+          <div
+            style={{
+              fontFamily: DISPLAY,
+              fontSize: 20,
+              textTransform: "uppercase",
+              letterSpacing: "-0.03em",
+            }}
+          >
+            Replace everything on this phone?
+          </div>
+          <div style={{ fontSize: 15, marginTop: 6, lineHeight: 1.4 }}>
+            That file holds <strong>{sum.sessions}</strong> session
+            {sum.sessions === 1 ? "" : "s"}, <strong>{sum.exercises}</strong> exercise
+            {sum.exercises === 1 ? "" : "s"}
+            {sum.weighIns ? (
+              <>
+                {" "}
+                and <strong>{sum.weighIns}</strong> weigh-in
+                {sum.weighIns === 1 ? "" : "s"}
+              </>
+            ) : null}
+            {sum.exportedAt ? `, saved ${sum.exportedAt}` : ""}. What is on this phone
+            now will be written over and cannot be got back.
+          </div>
+          <Btn
+            onClick={confirmRestore}
+            style={{
+              width: "100%",
+              marginTop: 12,
+              padding: "16px 0",
+              fontSize: 18,
+              background: accent,
+              color: "#fff",
+            }}
+          >
+            Replace everything
+          </Btn>
+          <Btn
+            onClick={() => {
+              setStage("idle");
+              setPending(null);
+            }}
+            style={{
+              width: "100%",
+              marginTop: 8,
+              padding: "14px 0",
+              fontSize: 16,
+              background: "#fff",
+              color: INK,
+              border: `3px solid ${RULE}`,
+            }}
+          >
+            Cancel
+          </Btn>
+        </div>
+      )}
+
+      {note && (
+        <div style={{ fontSize: 14, fontWeight: 700, color: MUTE, marginTop: 8 }}>
+          {note}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ============================ main app ============================ */
 
 export default function WorkoutHub() {
@@ -1213,7 +1402,7 @@ export default function WorkoutHub() {
                             flex: 1,
                             height: 22,
                             background: on ? WIN : WASH,
-                            border: `1px solid ${on ? WIN : RULE}`,
+                            border: `1px solid ${on ? WIN : WASH}`,
                           }}
                         />
                       );
@@ -1222,7 +1411,9 @@ export default function WorkoutHub() {
                 </div>
               ))}
               <div style={{ fontSize: 12, color: MUTE, marginTop: 4 }}>
-                Oldest on the left, today on the right.
+                Oldest on the left, today on the right. Green is a day it got
+                done — the plan is three sessions a week, so most days are meant
+                to be blank.
               </div>
             </div>
 
@@ -1390,6 +1581,13 @@ export default function WorkoutHub() {
                 />
               </div>
             ))}
+
+            <BackupCard
+              app="workout"
+              prefix="wk"
+              keys={["wk-profile", "wk-days", "wk-lifts"]}
+              accent={PUSH}
+            />
 
             <div style={{ borderTop: `4px solid ${INK}`, paddingTop: 12 }}>
               <div
