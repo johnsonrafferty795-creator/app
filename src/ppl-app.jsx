@@ -86,8 +86,12 @@ const PULL_DAY = {
 const LEGS_DAY = { key: "legs", label: "Legs", groups: ["legs"], color: LEGS_C };
 const REST_DAY = { key: "rest", label: "Rest", groups: [], color: REST_C };
 
-/* Push, Pull, Legs, Push, Pull, Legs, Rest — then round again. */
-const CYCLE = [PUSH_DAY, PULL_DAY, LEGS_DAY, PUSH_DAY, PULL_DAY, LEGS_DAY, REST_DAY];
+/* Push, Pull, Legs, Rest — then round again. Four days, so the rest day walks
+   through the week rather than landing on a fixed day. */
+const CYCLE = [PUSH_DAY, PULL_DAY, LEGS_DAY, REST_DAY];
+const CYCLE_LEN = CYCLE.length;
+/* three training days in every four: about five a week */
+const SESSIONS_PER_WEEK = 5;
 
 const SETS = 3;
 const REP_LOW = 6;
@@ -96,13 +100,22 @@ const REP_HIGH = 12;
 const GOALS = {
   bulk: { label: "Bulk", cardio: "No cardio", days: 0 },
   cut: { label: "Cut", cardio: "Cardio every day", days: 7 },
-  maintain: { label: "Maintain", cardio: "Cardio 5 days a week", days: 5 },
+  maintain: { label: "Maintain", cardio: "Cardio Monday to Friday", days: 5 },
 };
 
-/* Cut = every day. Maintain = the first five days of the cycle, which leaves
-   the second legs day and the rest day clear. Bulk = never. */
-const cardioDue = (goal, pos) =>
-  goal === "cut" ? true : goal === "maintain" ? pos <= 5 : false;
+/* Cut = every day. Bulk = never. Maintain = five a week, and since a four-day
+   rotation drifts through the week that has to key off the date, not the cycle:
+   Monday to Friday, weekends clear. */
+const weekday = (iso) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).getDay();
+};
+const cardioDue = (goal, iso) =>
+  goal === "cut"
+    ? true
+    : goal === "maintain"
+    ? weekday(iso) >= 1 && weekday(iso) <= 5
+    : false;
 
 /* ============================ helpers ============================ */
 
@@ -142,7 +155,7 @@ function buildSession(pos, picks) {
   return { pos, key: spec.key, label: spec.label, accent: spec.color, items };
 }
 
-const advance = (pos) => (pos % 7) + 1;
+const advance = (pos) => (pos % CYCLE_LEN) + 1;
 
 const bestOf = (history) => {
   if (!history || !history.length) return null;
@@ -407,7 +420,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
               textTransform: "uppercase",
             }}
           >
-            {session.label} &middot; Day {session.pos} of 7
+            {session.label} &middot; Day {session.pos} of {CYCLE_LEN}
           </div>
           <Btn
             onClick={onQuit}
@@ -884,7 +897,7 @@ function WeightChart({ points, selected, onSelect }) {
 /* ============================ four-week report ============================ */
 
 function BlockCard({ b, goal }) {
-  const target = { sessions: 24, eat: BLOCK, cardio: GOALS[goal].days * 4 };
+  const target = { sessions: SESSIONS_PER_WEEK * 4, eat: BLOCK, cardio: GOALS[goal].days * 4 };
   const stat = (label, value, tgt) => (
     <div key={label} style={{ flex: 1, background: WASH, padding: "10px 6px", textAlign: "center" }}>
       <div style={{ fontFamily: DISPLAY, fontSize: 26, letterSpacing: "-0.02em" }}>
@@ -1157,7 +1170,8 @@ export default function PPLHub() {
 
   const profile = loadJSON("ppl-profile", {});
   const [picks, setPicks] = useState(profile.picks || DEFAULT_PICKS);
-  const [pos, setPos] = useState(profile.pos || 1);
+  /* positions 5-7 exist only in the old seven-day rotation; fold them back in */
+  const [pos, setPos] = useState(((profile.pos || 1) - 1) % CYCLE_LEN + 1);
   const [goal, setGoal] = useState(profile.goal || "maintain");
   const [days, setDays] = useState(() => loadJSON("ppl-days", {}));
   const [lifts, setLifts] = useState(() => loadJSON("ppl-lifts", {}));
@@ -1205,7 +1219,7 @@ export default function PPLHub() {
   const flags = days[t] || {};
   const session = buildSession(pos, picks);
   const isRest = session.key === "rest";
-  const cardioOn = cardioDue(goal, pos);
+  const cardioOn = cardioDue(goal, t);
 
   const toggleFlag = (k) => {
     const next = { ...days, [t]: { ...flags, [k]: !flags[k] } };
@@ -1320,7 +1334,7 @@ export default function PPLHub() {
                 opacity: 0.8,
               }}
             >
-              Day {pos} of 7 &middot; {GOALS[goal].label}
+              Day {pos} of {CYCLE_LEN} &middot; {GOALS[goal].label}
             </div>
             <div
               style={{
@@ -1558,7 +1572,7 @@ export default function PPLHub() {
 
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               {[
-                ["workout", "Sessions", 6],
+                ["workout", "Sessions", SESSIONS_PER_WEEK],
                 ["eat", "Ate well", 7],
                 ...(GOALS[goal].days ? [["cardio", "Cardio", GOALS[goal].days]] : []),
               ].map(([k, label, target]) => {

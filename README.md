@@ -6,7 +6,7 @@ everything stored on the phone itself.
 | App | Lives at | Split |
 | --- | --- | --- |
 | **Workout** | `/` | 2-week rotation, 3 days a week |
-| **PPL** | `/ppl/` | Push, Pull, Legs, Push, Pull, Legs, Rest |
+| **PPL** | `/ppl/` | Push, Pull, Legs, Rest |
 
 They build, install and cache separately — two home-screen icons, two stores of
 data, one deploy. `src/workout-app.jsx` and `src/ppl-app.jsx` are deliberately
@@ -45,7 +45,7 @@ Everything lives in `localStorage` under three keys, wrapped by `src/storage.js`
 | `wk-profile` | chosen exercises + where he is in the 2-week rotation |
 | `wk-days`    | per-day habit flags (workout, cardio, food)          |
 | `wk-lifts`   | per-exercise set history, last 60 sets each          |
-| `ppl-profile`| chosen exercises, goal, and place in the 7-day cycle |
+| `ppl-profile`| chosen exercises, goal, and place in the 4-day cycle |
 | `ppl-days`   | per-day flags (workout, eat, cardio)                |
 | `ppl-lifts`  | per-exercise set history, last 60 sets each         |
 | `ppl-weight` | one body-weight reading per day, for the graph      |
@@ -87,7 +87,7 @@ workers, and therefore installing and offline use, do not work over plain HTTP.
 The second app, at `/ppl/`. Same session runner and overload maths; different
 plan and its own look (navy and blue, a plate icon, colour-coded day types).
 
-- **Today** — Push / Pull / Legs / Rest by position in a 7-day cycle, plus the
+- **Today** — Push / Pull / Legs / Rest by position in a 4-day cycle, plus the
   day's tasks: eat well, workout, and cardio when the goal calls for it
 - **Progress** — last 7 days, last 4 weeks, per-exercise history
 - **Weight** — one weigh-in a day, drawn as a line over time
@@ -99,9 +99,9 @@ plan and its own look (navy and blue, a plate icon, colour-coded day types).
 Every exercise is 3 sets of 6–12 reps to failure; the overload target adds a rep
 to 12, then +2.5 kg and back to 6.
 
-The goal drives cardio only: **bulk** none, **cut** daily, **maintain** on the
-first five days of the cycle (five a week, leaving the second legs day and the
-rest day clear).
+The goal drives cardio only: **bulk** none, **cut** daily, **maintain** Monday
+to Friday. The rotation is four days, so it drifts through the week — which is
+why "five a week" keys off the date rather than the cycle position.
 
 ## Icons
 
