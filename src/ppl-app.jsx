@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { loadJSON, saveJSON } from "./storage";
 
@@ -128,13 +128,17 @@ const dayNum = (iso) => {
 
 const shortDate = (iso) => `${iso.slice(8)}/${iso.slice(5, 7)}`;
 
+/* Every exercise ticked for a muscle group is in the session — not one of them.
+   Library order, so the session doesn't reshuffle when a choice is toggled. */
 function buildSession(pos, picks) {
   const spec = CYCLE[pos - 1];
-  const items = spec.groups.map((g) => ({
-    group: g,
-    options: picks[g] && picks[g].length ? picks[g] : LIBRARY[g],
-    sets: SETS,
-  }));
+  const items = [];
+  spec.groups.forEach((g) => {
+    const chosen = picks[g] || [];
+    LIBRARY[g].forEach((name) => {
+      if (chosen.includes(name)) items.push({ group: g, name, sets: SETS });
+    });
+  });
   return { pos, key: spec.key, label: spec.label, accent: spec.color, items };
 }
 
@@ -153,6 +157,92 @@ const nextTarget = (best) => {
     ? { w: best.w, r: best.r + 1 }
     : { w: +(best.w + 2.5).toFixed(1), r: REP_LOW };
 };
+
+/* ---- four-week blocks ----
+ * Blocks run from the first day with any data, 28 days at a time. A block is
+ * summarised the moment it closes and written to ppl-reports, so old numbers
+ * stay put even once the rolling per-exercise history has scrolled past them.
+ */
+const BLOCK = 28;
+
+const dataDates = (days, lifts, weights) => {
+  const seen = new Set([...Object.keys(days || {}), ...Object.keys(weights || {})]);
+  Object.values(lifts || {}).forEach((h) => h.forEach((e) => seen.add(e.d)));
+  return [...seen].filter(Boolean).sort();
+};
+
+/* Sets are ranked for the report the same way the overload rule works: heavier
+   wins, and at equal weight more reps wins. Ranking by volume (weight x reps)
+   would read the intended 12-reps-then-add-weight jump as a step backwards. */
+const cmpLift = (a, b) => (a.w !== b.w ? a.w - b.w : a.r - b.r);
+const bestLift = (list) => list.reduce((a, b) => (cmpLift(b, a) > 0 ? b : a));
+
+function summariseBlock(i, start, end, days, lifts, weights, t) {
+  const within = (d) => d >= start && d <= end;
+  const dayList = Object.keys(days || {}).filter(within);
+  const count = (k) => dayList.filter((d) => days[d][k]).length;
+
+  const weighIns = Object.entries(weights || {})
+    .filter(([d]) => within(d))
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1));
+
+  const moves = [];
+  Object.entries(lifts || {}).forEach(([name, hist]) => {
+    const here = hist.filter((e) => within(e.d));
+    if (!here.length) return;
+    const before = hist.filter((e) => e.d < start);
+    /* measured against where the last block left off, or against the first set
+       of this one if there is nothing earlier */
+    const from = before.length ? bestLift(before) : here[0];
+    const to = bestLift(here);
+    const step = cmpLift(to, from);
+    moves.push({
+      name,
+      from,
+      to,
+      dir: step > 0 ? "up" : step < 0 ? "down" : "flat",
+      step,
+      sets: here.length,
+    });
+  });
+  moves.sort((a, b) => b.step - a.step);
+
+  return {
+    i,
+    start,
+    end,
+    complete: end < t,
+    sessions: count("workout"),
+    eat: count("eat"),
+    cardio: count("cardio"),
+    weightFrom: weighIns.length ? weighIns[0][1] : null,
+    weightTo: weighIns.length ? weighIns[weighIns.length - 1][1] : null,
+    weightChange:
+      weighIns.length > 1
+        ? +(weighIns[weighIns.length - 1][1] - weighIns[0][1]).toFixed(1)
+        : null,
+    up: moves.filter((m) => m.dir === "up"),
+    stalled: moves.filter((m) => m.dir !== "up"),
+  };
+}
+
+function buildBlocks(days, lifts, weights, t) {
+  const dates = dataDates(days, lifts, weights);
+  if (!dates.length) return [];
+  const anchor = dates[0];
+  const n = Math.floor((dayNum(t) - dayNum(anchor)) / BLOCK) + 1;
+  return Array.from({ length: n }, (_, i) =>
+    summariseBlock(
+      i,
+      shiftDay(anchor, i * BLOCK),
+      shiftDay(anchor, i * BLOCK + BLOCK - 1),
+      days,
+      lifts,
+      weights,
+      t
+    )
+  );
+}
 
 const bestPerDay = (hist) => {
   const byDate = {};
@@ -265,10 +355,9 @@ function SectionLabel({ children, style }) {
 
 function Session({ session, lifts, onFinish, onQuit }) {
   const [idx, setIdx] = useState(0);
-  const [choice, setChoice] = useState(() => session.items.map(() => 0));
   const [entries, setEntries] = useState(() =>
     session.items.map((it) => {
-      const tgt = nextTarget(bestOf(lifts[it.options[0]]));
+      const tgt = nextTarget(bestOf(lifts[it.name]));
       return Array.from({ length: it.sets }, () => ({
         w: tgt ? tgt.w : 20,
         r: tgt ? tgt.r : 10,
@@ -278,23 +367,10 @@ function Session({ session, lifts, onFinish, onQuit }) {
   );
 
   const item = session.items[idx];
-  const name = item.options[choice[idx]];
+  const name = item.name;
   const last = bestOf(lifts[name]);
   const target = nextTarget(last);
   const sets = entries[idx];
-
-  const swap = () => {
-    const next = (choice[idx] + 1) % item.options.length;
-    const nt = nextTarget(bestOf(lifts[item.options[next]]));
-    setChoice(choice.map((c, i) => (i === idx ? next : c)));
-    setEntries(
-      entries.map((e, i) =>
-        i === idx
-          ? e.map(() => ({ w: nt ? nt.w : 20, r: nt ? nt.r : 10, done: false }))
-          : e
-      )
-    );
-  };
 
   const setField = (si, field, val) =>
     setEntries(
@@ -312,9 +388,8 @@ function Session({ session, lifts, onFinish, onQuit }) {
     } else {
       const result = {};
       session.items.forEach((it, i) => {
-        const n = it.options[choice[i]];
         const good = entries[i].filter((s) => s.done);
-        if (good.length) result[n] = good.map((s) => ({ w: s.w, r: s.r }));
+        if (good.length) result[it.name] = good.map((s) => ({ w: s.w, r: s.r }));
       });
       onFinish(result);
     }
@@ -377,22 +452,6 @@ function Session({ session, lifts, onFinish, onQuit }) {
         >
           {name}
         </div>
-
-        {item.options.length > 1 && (
-          <Btn
-            onClick={swap}
-            style={{
-              background: "#fff",
-              border: `3px solid ${MUTE}`,
-              color: INK,
-              fontSize: 14,
-              padding: "8px 12px",
-              marginBottom: 12,
-            }}
-          >
-            Swap exercise
-          </Btn>
-        )}
 
         <div
           style={{
@@ -822,6 +881,188 @@ function WeightChart({ points, selected, onSelect }) {
   );
 }
 
+/* ============================ four-week report ============================ */
+
+function BlockCard({ b, goal }) {
+  const target = { sessions: 24, eat: BLOCK, cardio: GOALS[goal].days * 4 };
+  const stat = (label, value, tgt) => (
+    <div key={label} style={{ flex: 1, background: WASH, padding: "10px 6px", textAlign: "center" }}>
+      <div style={{ fontFamily: DISPLAY, fontSize: 26, letterSpacing: "-0.02em" }}>
+        {value}
+        {tgt ? <span style={{ fontSize: 13, color: MUTE }}>/{tgt}</span> : null}
+      </div>
+      <div
+        style={{
+          fontSize: 10,
+          fontWeight: 800,
+          letterSpacing: "0.05em",
+          textTransform: "uppercase",
+          color: MUTE,
+          marginTop: 3,
+        }}
+      >
+        {label}
+      </div>
+    </div>
+  );
+
+  const line = (m, up) => (
+    <div
+      key={m.name}
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 10,
+        padding: "11px 12px",
+        background: WASH,
+        marginBottom: 5,
+        borderLeft: `6px solid ${up ? WIN : RULE}`,
+      }}
+    >
+      <span style={{ fontSize: 15, fontWeight: 700, minWidth: 0 }}>{m.name}</span>
+      <span style={{ fontFamily: DISPLAY, fontSize: 15, flexShrink: 0, letterSpacing: "-0.02em" }}>
+        {m.from.w}×{m.from.r}
+        <span style={{ color: MUTE }}> → </span>
+        <span style={{ color: up ? WIN : INK }}>
+          {m.to.w}×{m.to.r}
+        </span>
+      </span>
+    </div>
+  );
+
+  return (
+    <div style={{ marginBottom: 26 }}>
+      <div
+        style={{
+          background: b.complete ? INK : REST_C,
+          color: "#fff",
+          padding: "10px 12px",
+        }}
+      >
+        <div style={{ fontFamily: DISPLAY, fontSize: 20, letterSpacing: "-0.02em" }}>
+          Weeks {b.i * 4 + 1}&ndash;{b.i * 4 + 4}
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 700, opacity: 0.85 }}>
+          {shortDate(b.start)} – {shortDate(b.end)}
+          {b.complete ? "" : " · still running"}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+        {stat("Sessions", b.sessions, target.sessions)}
+        {stat("Ate well", b.eat, target.eat)}
+        {target.cardio ? stat("Cardio", b.cardio, target.cardio) : null}
+      </div>
+
+      <div
+        style={{
+          marginTop: 8,
+          padding: "10px 12px",
+          background: WASH,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 10,
+        }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: MUTE }}>
+          Body weight
+        </span>
+        <span style={{ fontFamily: DISPLAY, fontSize: 18, letterSpacing: "-0.02em" }}>
+          {b.weightFrom == null ? (
+            <span style={{ color: MUTE }}>—</span>
+          ) : (
+            <>
+              {b.weightFrom}
+              <span style={{ color: MUTE }}> → </span>
+              {b.weightTo}kg
+              {b.weightChange != null && (
+                <span style={{ color: b.weightChange > 0 ? INK : WIN, marginLeft: 6 }}>
+                  {b.weightChange > 0 ? "+" : ""}
+                  {b.weightChange}
+                </span>
+              )}
+            </>
+          )}
+        </span>
+      </div>
+
+      {b.up.length + b.stalled.length === 0 ? (
+        <div style={{ fontSize: 15, color: MUTE, marginTop: 16, lineHeight: 1.4 }}>
+          No sets logged in these four weeks yet.
+        </div>
+      ) : (
+        <>
+          <SectionLabel style={{ margin: "16px 0 8px" }}>
+            Moved up &middot; {b.up.length}
+          </SectionLabel>
+          {b.up.length ? (
+            b.up.map((m) => line(m, true))
+          ) : (
+            <div style={{ fontSize: 15, color: MUTE }}>Nothing beat its previous best.</div>
+          )}
+
+          <SectionLabel style={{ margin: "16px 0 8px" }}>
+            Stalled or dropped &middot; {b.stalled.length}
+          </SectionLabel>
+          {b.stalled.length ? (
+            b.stalled.map((m) => line(m, false))
+          ) : (
+            <div style={{ fontSize: 15, color: MUTE }}>
+              Nothing stalled — every lift went up.
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function ReportScreen({ blocks, goal, onBack }) {
+  return (
+    <div
+      className="pad-nav"
+      style={{ fontFamily: BODY, color: INK, background: "#fff", minHeight: "100vh" }}
+    >
+      <div style={{ background: INK, color: "#fff", padding: "14px 16px 16px" }}>
+        <Btn
+          onClick={onBack}
+          style={{
+            background: "transparent",
+            color: "#fff",
+            border: "2px solid rgba(255,255,255,.6)",
+            fontSize: 13,
+            padding: "5px 10px",
+            marginBottom: 10,
+          }}
+        >
+          ← Back
+        </Btn>
+        <div
+          style={{
+            fontFamily: DISPLAY,
+            fontSize: 30,
+            textTransform: "uppercase",
+            letterSpacing: "-0.035em",
+          }}
+        >
+          Four-week report
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 700, marginTop: 6, opacity: 0.9 }}>
+          Newest first. Each block is measured against the one before it.
+        </div>
+      </div>
+
+      <div style={{ padding: "14px 16px 0" }}>
+        {[...blocks].reverse().map((b) => (
+          <BlockCard key={b.i} b={b} goal={goal} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ============================ weight entry ============================ */
 
 function WeightCard({ todayKg, lastKg, onSave }) {
@@ -912,6 +1153,7 @@ export default function PPLHub() {
   const [running, setRunning] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const [picked, setPicked] = useState(null);
+  const [report, setReport] = useState(false);
 
   const profile = loadJSON("ppl-profile", {});
   const [picks, setPicks] = useState(profile.picks || DEFAULT_PICKS);
@@ -920,6 +1162,26 @@ export default function PPLHub() {
   const [days, setDays] = useState(() => loadJSON("ppl-days", {}));
   const [lifts, setLifts] = useState(() => loadJSON("ppl-lifts", {}));
   const [weights, setWeights] = useState(() => loadJSON("ppl-weight", {}));
+
+  const blocks = buildBlocks(days, lifts, weights, today());
+
+  /* Freeze each block's numbers as it closes: stored snapshots win over
+     recomputed ones, so a finished report never shifts under you. */
+  useEffect(() => {
+    const done = blocks.filter((b) => b.complete);
+    if (!done.length) return;
+    const stored = loadJSON("ppl-reports", {});
+    const missing = done.filter((b) => !stored[b.i]);
+    if (!missing.length) return;
+    missing.forEach((b) => {
+      stored[b.i] = b;
+    });
+    try {
+      saveJSON("ppl-reports", stored);
+    } catch (e) {
+      /* nothing to do — the block is recomputed from the raw data anyway */
+    }
+  });
 
   const persist = (key, value) => {
     try {
@@ -977,6 +1239,15 @@ export default function PPLHub() {
     persist("ppl-days", nextDays);
     persist("ppl-profile", { picks, pos: nextPos, goal });
   };
+
+  const saved = loadJSON("ppl-reports", {});
+  const shownBlocks = blocks.map((b) => (b.complete && saved[b.i] ? saved[b.i] : b));
+
+  if (report) {
+    return (
+      <ReportScreen blocks={shownBlocks} goal={goal} onBack={() => setReport(false)} />
+    );
+  }
 
   if (running) {
     return (
@@ -1078,7 +1349,9 @@ export default function PPLHub() {
                   letterSpacing: "-0.02em",
                 }}
               >
-                {session.items.map((i) => GROUP_NAMES[i.group]).join(" · ")}
+                {[...new Set(session.items.map((i) => i.group))]
+                  .map((g) => GROUP_NAMES[g])
+                  .join(" · ")}
               </div>
             )}
           </div>
@@ -1116,29 +1389,47 @@ export default function PPLHub() {
               </div>
             ) : (
               <>
-                <div
-                  style={{
-                    fontSize: 16,
-                    fontWeight: 700,
-                    color: session.accent,
-                  }}
-                >
-                  {SETS} sets &middot; {REP_LOW}&ndash;{REP_HIGH} reps &middot; every set to
-                  failure
-                </div>
-                <Btn
-                  onClick={() => setRunning(true)}
-                  style={{
-                    width: "100%",
-                    marginTop: 14,
-                    padding: "22px 0",
-                    fontSize: 26,
-                    background: session.accent,
-                    color: "#fff",
-                  }}
-                >
-                  Start session
-                </Btn>
+                {session.items.length === 0 ? (
+                  <div style={{ background: WASH, padding: "14px 12px", borderLeft: `8px solid ${REST_C}` }}>
+                    <div style={{ fontSize: 16, lineHeight: 1.35 }}>
+                      Nothing ticked for today&rsquo;s muscle groups. Open{" "}
+                      <strong>Plan</strong> and choose the exercises you use.
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ fontFamily: DISPLAY, fontSize: 22, letterSpacing: "-0.03em", textTransform: "uppercase" }}>
+                      {session.items.length} exercises &middot; {session.items.length * SETS} sets
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 16,
+                        fontWeight: 700,
+                        color: session.accent,
+                        marginTop: 4,
+                      }}
+                    >
+                      {SETS} sets each &middot; {REP_LOW}&ndash;{REP_HIGH} reps &middot; every set to
+                      failure
+                    </div>
+                    <div style={{ fontSize: 15, color: MUTE, marginTop: 8, lineHeight: 1.4 }}>
+                      {session.items.map((i) => i.name).join(", ")}
+                    </div>
+                    <Btn
+                      onClick={() => setRunning(true)}
+                      style={{
+                        width: "100%",
+                        marginTop: 14,
+                        padding: "22px 0",
+                        fontSize: 26,
+                        background: session.accent,
+                        color: "#fff",
+                      }}
+                    >
+                      Start session
+                    </Btn>
+                  </>
+                )}
               </>
             )}
 
@@ -1195,6 +1486,74 @@ export default function PPLHub() {
           </div>
 
           <div style={{ padding: "14px 16px 0" }}>
+            {(() => {
+              const done = shownBlocks.filter((b) => b.complete);
+              const latest = done[done.length - 1];
+              const current = shownBlocks[shownBlocks.length - 1];
+              if (!current) {
+                return (
+                  <div style={{ background: WASH, padding: "12px 14px", marginBottom: 18 }}>
+                    <SectionLabel>Four-week report</SectionLabel>
+                    <div style={{ fontSize: 15, color: MUTE, marginTop: 6, lineHeight: 1.4 }}>
+                      Starts as soon as there&rsquo;s something to report. Log a session or
+                      a weigh-in.
+                    </div>
+                  </div>
+                );
+              }
+              const head = latest || current;
+              const left = dayNum(current.end) - dayNum(t);
+              return (
+                <Btn
+                  onClick={() => setReport(true)}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    background: INK,
+                    color: "#fff",
+                    padding: "14px 14px",
+                    marginBottom: 18,
+                    display: "block",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 800,
+                      letterSpacing: "0.12em",
+                      opacity: 0.8,
+                      fontFamily: BODY,
+                    }}
+                  >
+                    {latest ? "Four-week report" : "First report"}
+                  </div>
+                  <div style={{ fontSize: 24, letterSpacing: "-0.03em", marginTop: 4 }}>
+                    {latest
+                      ? `Weeks ${head.i * 4 + 1}–${head.i * 4 + 4}`
+                      : `${left + 1} days to go`}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      marginTop: 4,
+                      fontFamily: BODY,
+                      textTransform: "none",
+                      letterSpacing: 0,
+                    }}
+                  >
+                    {latest
+                      ? `${head.up.length} up · ${head.stalled.length} stalled${
+                          head.weightChange != null
+                            ? ` · ${head.weightChange > 0 ? "+" : ""}${head.weightChange}kg`
+                            : ""
+                        } — tap to read`
+                      : "Tap to see how it's going so far"}
+                  </div>
+                </Btn>
+              );
+            })()}
+
             <SectionLabel>Last 7 days</SectionLabel>
 
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>

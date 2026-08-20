@@ -16,7 +16,8 @@ kept as independent files: neither can break the other.
 
 - **Today** — the next session in the rotation, plus the daily habit toggles
 - **Session** — one exercise at a time, with the target worked out from the
-  best set logged so far (add a rep to 12, then +2.5 kg and back to 8)
+  best set logged so far (add a rep to 12, then +2.5 kg and back to 8). Every
+  exercise ticked for a muscle group is in the session, in library order
 - **Progress** — last 7 days, last 4 weeks, and per-exercise history
 - **Exercises** — which movements the sessions get built from
 
@@ -48,6 +49,7 @@ Everything lives in `localStorage` under three keys, wrapped by `src/storage.js`
 | `ppl-days`   | per-day flags (workout, eat, cardio)                |
 | `ppl-lifts`  | per-exercise set history, last 60 sets each         |
 | `ppl-weight` | one body-weight reading per day, for the graph      |
+| `ppl-reports`| frozen four-week summaries, one per closed block    |
 
 The two apps share an origin, so the `wk-` / `ppl-` prefixes are what keep them
 out of each other's data.
@@ -89,6 +91,9 @@ plan and its own look (navy and blue, a plate icon, colour-coded day types).
   day's tasks: eat well, workout, and cardio when the goal calls for it
 - **Progress** — last 7 days, last 4 weeks, per-exercise history
 - **Weight** — one weigh-in a day, drawn as a line over time
+- **Four-week report** — each 28-day block summarised as it closes and saved to
+  `ppl-reports`: sessions, habits, body weight, and every lift sorted into
+  moved-up or stalled
 - **Plan** — bulk / cut / maintain, rotation position, exercise choices
 
 Every exercise is 3 sets of 6–12 reps to failure; the overload target adds a rep

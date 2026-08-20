@@ -115,17 +115,21 @@ const dayLetter = (iso) => {
   return ["S", "M", "T", "W", "T", "F", "S"][new Date(y, m - 1, d).getDay()];
 };
 
+/* Every exercise ticked for a muscle group is in the session — not one of them.
+   Library order, so the session doesn't reshuffle when a choice is toggled. The
+   set count is still the group's: each exercise gets it. */
 function buildSession(week, day, picks) {
   const spec = PLAN[week][day];
   const hardRules = week === 1 || spec.week1Rules;
   const groups = [...spec.groups, "abs"];
 
-  const items = groups.map((g) => {
-    const chosen = (picks[g] && picks[g].length ? picks[g] : LIBRARY[g]);
-    let sets;
-    if (hardRules) sets = 3;
-    else sets = FOCUS.includes(g) ? 2 : 1;
-    return { group: g, options: chosen, sets };
+  const items = [];
+  groups.forEach((g) => {
+    const chosen = picks[g] || [];
+    const sets = hardRules ? 3 : FOCUS.includes(g) ? 2 : 1;
+    LIBRARY[g].forEach((name) => {
+      if (chosen.includes(name)) items.push({ group: g, name, sets });
+    });
   });
 
   return {
@@ -250,11 +254,9 @@ function Stepper({ label, value, unit, onChange, step, min }) {
 
 function Session({ session, lifts, onFinish, onQuit }) {
   const [idx, setIdx] = useState(0);
-  const [choice, setChoice] = useState(() => session.items.map(() => 0));
   const [entries, setEntries] = useState(() =>
     session.items.map((it) => {
-      const name = it.options[0];
-      const tgt = nextTarget(bestOf(lifts[name]));
+      const tgt = nextTarget(bestOf(lifts[it.name]));
       return Array.from({ length: it.sets }, () => ({
         w: tgt ? tgt.w : 20,
         r: tgt ? tgt.r : 10,
@@ -264,24 +266,10 @@ function Session({ session, lifts, onFinish, onQuit }) {
   );
 
   const item = session.items[idx];
-  const name = item.options[choice[idx]];
+  const name = item.name;
   const last = bestOf(lifts[name]);
   const target = nextTarget(last);
   const sets = entries[idx];
-
-  const swap = () => {
-    const next = (choice[idx] + 1) % item.options.length;
-    const nextName = item.options[next];
-    const nt = nextTarget(bestOf(lifts[nextName]));
-    setChoice(choice.map((c, i) => (i === idx ? next : c)));
-    setEntries(
-      entries.map((e, i) =>
-        i === idx
-          ? e.map(() => ({ w: nt ? nt.w : 20, r: nt ? nt.r : 10, done: false }))
-          : e
-      )
-    );
-  };
 
   const setField = (si, field, val) =>
     setEntries(
@@ -302,9 +290,8 @@ function Session({ session, lifts, onFinish, onQuit }) {
     } else {
       const result = {};
       session.items.forEach((it, i) => {
-        const n = it.options[choice[i]];
         const good = entries[i].filter((s) => s.done);
-        if (good.length) result[n] = good.map((s) => ({ w: s.w, r: s.r }));
+        if (good.length) result[it.name] = good.map((s) => ({ w: s.w, r: s.r }));
       });
       onFinish(result);
     }
@@ -381,22 +368,6 @@ function Session({ session, lifts, onFinish, onQuit }) {
         >
           {name}
         </div>
-
-        {item.options.length > 1 && (
-          <Btn
-            onClick={swap}
-            style={{
-              background: "#fff",
-              border: `3px solid ${MUTE}`,
-              color: INK,
-              fontSize: 14,
-              padding: "8px 12px",
-              marginBottom: 12,
-            }}
-          >
-            Swap exercise
-          </Btn>
-        )}
 
         <div
           style={{
@@ -858,8 +829,8 @@ export default function WorkoutHub() {
                 letterSpacing: "-0.03em",
               }}
             >
-              {session.items
-                .map((i) => GROUP_NAMES[i.group])
+              {[...new Set(session.items.map((i) => i.group))]
+                .map((g) => GROUP_NAMES[g])
                 .join(" · ")}
             </div>
             <div
@@ -872,22 +843,56 @@ export default function WorkoutHub() {
             >
               {session.toFailure
                 ? "3 sets · 8–12 reps · to true failure"
-                : "1 set per group, 2 for chest/back/biceps · stop close to failure"}
+                : "1 set per exercise, 2 for chest/back/biceps · stop close to failure"}
             </div>
 
-            <Btn
-              onClick={() => setRunning(true)}
-              style={{
-                width: "100%",
-                marginTop: 16,
-                padding: "22px 0",
-                fontSize: 26,
-                background: session.accent,
-                color: "#fff",
-              }}
-            >
-              Start session
-            </Btn>
+            {session.items.length === 0 ? (
+              <div
+                style={{
+                  background: WASH,
+                  padding: "14px 12px",
+                  marginTop: 14,
+                  borderLeft: `8px solid ${HOLD}`,
+                }}
+              >
+                <div style={{ fontSize: 16, lineHeight: 1.35 }}>
+                  Nothing ticked for today&rsquo;s muscle groups. Open{" "}
+                  <strong>Exercises</strong> and choose the ones he uses.
+                </div>
+              </div>
+            ) : (
+              <>
+                <div
+                  style={{
+                    fontFamily: DISPLAY,
+                    fontSize: 22,
+                    letterSpacing: "-0.03em",
+                    textTransform: "uppercase",
+                    marginTop: 10,
+                  }}
+                >
+                  {session.items.length} exercises &middot;{" "}
+                  {session.items.reduce((n, i) => n + i.sets, 0)} sets
+                </div>
+                <div style={{ fontSize: 15, color: MUTE, marginTop: 6, lineHeight: 1.4 }}>
+                  {session.items.map((i) => i.name).join(", ")}
+                </div>
+
+                <Btn
+                  onClick={() => setRunning(true)}
+                  style={{
+                    width: "100%",
+                    marginTop: 16,
+                    padding: "22px 0",
+                    fontSize: 26,
+                    background: session.accent,
+                    color: "#fff",
+                  }}
+                >
+                  Start session
+                </Btn>
+              </>
+            )}
 
             <div
               style={{
