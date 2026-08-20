@@ -1,0 +1,53 @@
+:root {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  /* never shrink the type — this app is built to be read at arm's length */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: #fff;
+  color: #0d1014;
+  font-family: 'Helvetica Neue', Arial, Helvetica, sans-serif;
+  /* no rubber-band bounce, so it feels like an app and not a web page */
+  overscroll-behavior-y: none;
+}
+
+button {
+  /* big targets, tapped fast and repeatedly: no zoom delay, no grey flash,
+     no accidental text selection */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+button:focus-visible {
+  outline: 4px solid #0f4a72;
+  outline-offset: 2px;
+}
+
+/* Keep the fixed bottom bars clear of the iPhone home indicator. */
+.safe-nav {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-bar {
+  padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important;
+}
+
+.pad-nav {
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+}
+
+.pad-session {
+  padding-bottom: calc(110px + env(safe-area-inset-bottom));
+}
