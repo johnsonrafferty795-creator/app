@@ -131,21 +131,52 @@ const dayLetter = (iso) => {
 /* The built-in list for a muscle group plus anything added on the phone. */
 const listFor = (g, custom) => [...LIBRARY[g], ...((custom && custom[g]) || [])];
 
-/* Every exercise ticked for a muscle group is in the session — not one of them.
-   List order, so the session doesn't reshuffle when a choice is toggled. The
-   set count is still the group's: each exercise gets it. */
-function buildSession(week, day, picks, custom) {
+/* Least recently trained first, so the full-body days work round every
+   exercise on the list instead of always reaching for the same one. Anything
+   never logged comes first; ties keep list order. */
+function byStalest(names, lifts) {
+  const lastDone = (n) => {
+    const h = lifts && lifts[n];
+    return h && h.length ? h[h.length - 1].d : "";
+  };
+  return names
+    .map((name, i) => ({ name, i }))
+    .sort(
+      (a, b) =>
+        lastDone(a.name).localeCompare(lastDone(b.name)) || a.i - b.i
+    )
+    .map((x) => x.name);
+}
+
+/* Two different days, two different rules.
+ *
+ * Hard days — all of week 1, plus the leg day — are everything ticked for the
+ * muscle group, three sets each, to failure.
+ *
+ * Full-body days are the light ones: one exercise per muscle group, two for
+ * chest, back and biceps, a single set each. That keeps a full-body day at the
+ * volume it was designed for however many exercises are ticked.
+ */
+function buildSession(week, day, picks, custom, lifts) {
   const spec = PLAN[week][day];
   const hardRules = week === 1 || spec.week1Rules;
   const groups = [...spec.groups, "abs"];
 
   const items = [];
   groups.forEach((g) => {
-    const chosen = picks[g] || [];
-    const sets = hardRules ? 3 : FOCUS.includes(g) ? 2 : 1;
-    listFor(g, custom).forEach((name) => {
-      if (chosen.includes(name)) items.push({ group: g, name, sets });
-    });
+    const chosen = listFor(g, custom).filter((n) => (picks[g] || []).includes(n));
+    if (!chosen.length) return;
+
+    if (hardRules) {
+      chosen.forEach((name) => items.push({ group: g, name, sets: 3 }));
+      return;
+    }
+
+    const slots = FOCUS.includes(g) ? 2 : 1;
+    const picked = byStalest(chosen, lifts).slice(0, slots);
+    /* only one ticked where two were wanted: it carries both sets itself */
+    const sets = Math.ceil(slots / picked.length);
+    picked.forEach((name) => items.push({ group: g, name, sets }));
   });
 
   return {
@@ -973,7 +1004,7 @@ export default function WorkoutHub() {
     persist("wk-days", next);
   };
 
-  const session = buildSession(pos.week, pos.day, picks, custom);
+  const session = buildSession(pos.week, pos.day, picks, custom, lifts);
 
   const finishSession = (result) => {
     const nextLifts = { ...lifts };
@@ -1184,7 +1215,7 @@ export default function WorkoutHub() {
             >
               {session.toFailure
                 ? "3 sets · 8–12 reps · to true failure"
-                : "1 set per exercise, 2 for chest/back/biceps · stop close to failure"}
+                : "1 exercise per group, 2 for chest/back/biceps · 1 set each · stop close to failure"}
             </div>
 
             {session.items.length === 0 ? (
