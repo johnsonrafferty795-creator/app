@@ -305,6 +305,8 @@ function Btn({ children, onClick, style, aria }) {
 }
 
 function Stepper({ label, value, unit, onChange, step, min }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState("");
   const btn = {
     width: 56,
     height: 56,
@@ -339,16 +341,45 @@ function Stepper({ label, value, unit, onChange, step, min }) {
         <div
           style={{
             flex: 1,
-            textAlign: "center",
-            fontFamily: DISPLAY,
-            fontSize: 30,
-            letterSpacing: "-0.03em",
             minWidth: 0,
-            overflow: "hidden",
+            display: "flex",
+            alignItems: "baseline",
+            justifyContent: "center",
           }}
         >
-          {value}
-          <span style={{ fontSize: 15 }}>{unit}</span>
+          {/* tap the number to type it, for the jumps the buttons would take
+              all day to walk up */}
+          <input
+            value={editing ? text : String(value)}
+            onFocus={(e) => {
+              setEditing(true);
+              setText(String(value));
+              e.target.select();
+            }}
+            onChange={(e) => {
+              const t = e.target.value.replace(/[^0-9.]/g, "");
+              setText(t);
+              const n = parseFloat(t);
+              if (!isNaN(n) && n >= min && n < 1000) onChange(+n.toFixed(1));
+            }}
+            onBlur={() => setEditing(false)}
+            inputMode="decimal"
+            aria-label={label}
+            style={{
+              width: unit ? "62%" : "100%",
+              minWidth: 0,
+              border: "none",
+              outline: "none",
+              textAlign: unit ? "right" : "center",
+              fontFamily: DISPLAY,
+              fontSize: 30,
+              letterSpacing: "-0.03em",
+              color: INK,
+              background: "transparent",
+              padding: 0,
+            }}
+          />
+          {unit && <span style={{ fontSize: 15 }}>{unit}</span>}
         </div>
         <Btn
           aria={`Increase ${label}`}
@@ -543,7 +574,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
                 label="WEIGHT"
                 value={s.w}
                 unit="kg"
-                step={2.5}
+                step={0.5}
                 min={0}
                 onChange={(v) => setField(si, "w", v)}
               />
