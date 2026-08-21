@@ -1,25 +1,130 @@
-/* Dark gym. Loaded only by the PPL app — the other app on this domain stays
-   light, and the two share index.css. */
-:root {
+/* Two themes for the PPL app. The other app on this domain loads only
+   index.css and stays black on white. */
+
+@font-face {
+  font-family: "Grenze Gotisch";
+  /* one variable file covers the range, so the browser interpolates weight */
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url("./fonts/grenze-gotisch.woff2") format("woff2");
+}
+
+:root,
+:root[data-theme="steel"] {
   color-scheme: dark;
+
+  --bg: #0b0c0f;
+  --ink: #101319;
+  --card: #161a21;
+  --wash: #1b2027;
+  --raised: #212833;
+  --rule: #2c333e;
+  --mute: #98a2b3;
+  --text: #f3f5f8;
+  --grid: #242b35;
+
+  /* bright fills, so type sitting on one goes dark */
+  --push: #3b82f6;
+  --pull: #22d3ee;
+  --legs: #a78bfa;
+  --rest: #7c8aa0;
+  --win: #34d399;
+  --warn: #f87171;
+  --on-accent: #0b0c0f;
+
+  --chart: #60a5fa;
+  --chart-ok: #34d399;
+  --good-text: #34d399;
+  --accent-text: #60a5fa;
+
+  --display: "Arial Black", "Helvetica Neue", Impact, sans-serif;
+  --body: "Helvetica Neue", Arial, Helvetica, sans-serif;
+  --figures: "Helvetica Neue", Arial, Helvetica, sans-serif;
+  --caret: #3b82f6;
+}
+
+:root[data-theme="gothic"] {
+  color-scheme: dark;
+
+  --bg: #0c0c0d;
+  --ink: #141416;
+  --card: #1a1a1c;
+  --wash: #1f1f22;
+  --raised: #26262a;
+  --rule: #3c3c41;
+  --mute: #9d9a94;
+  --text: #efece5;
+  --grid: #2a2a2e;
+
+  /* iron and blood: dark fills, so type sitting on one goes light */
+  --push: #8e1b22;
+  --pull: #4a5159;
+  --legs: #3e434a;
+  --rest: #33373d;
+  --win: #5f5b54;
+  --warn: #a8323a;
+  --on-accent: #f2efe8;
+
+  --chart: #c9424b;
+  --chart-ok: #b5afa4;
+  --good-text: #c3bcae;
+  --accent-text: #e0707a;
+
+  --display: "Grenze Gotisch", Georgia, "Times New Roman", serif;
+  /* lining figures: Georgia and Baskerville set old-style ones, which turn
+     a 6 into something like a b in a chart label */
+  --body: "Times New Roman", Times, Georgia, serif;
+  /* axis and bar labels stay sans in both themes, for the figures */
+  --figures: "Helvetica Neue", Arial, Helvetica, sans-serif;
+  --caret: #c9424b;
 }
 
 body {
-  background: #0b0c0f;
-  color: #f3f5f8;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--body);
 }
 
 button:focus-visible {
-  outline: 4px solid #3b82f6;
+  outline: 3px solid var(--chart);
   outline-offset: 2px;
 }
 
-/* the number fields in the set logger and the weigh-in */
 input {
-  color: #f3f5f8;
-  caret-color: #3b82f6;
+  color: var(--text);
+  caret-color: var(--caret);
+  font-family: inherit;
 }
 
 input::placeholder {
-  color: #6b7480;
+  color: var(--mute);
+  opacity: 0.85;
+}
+
+/* ---- ornament ----
+   Steel leaves .orn alone; gothic gives it a double rule and a rosette at
+   each corner, after the old bordered frames. One element carries all four
+   as background layers, so nothing is added to the markup. */
+.orn {
+  position: relative;
+}
+
+:root[data-theme="gothic"] .orn {
+  box-shadow: inset 0 0 0 3px var(--bg), inset 0 0 0 4px var(--rule);
+}
+
+:root[data-theme="gothic"] .orn::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  pointer-events: none;
+  background-image: var(--rosette), var(--rosette), var(--rosette), var(--rosette);
+  background-position: left top, right top, left bottom, right bottom;
+  background-repeat: no-repeat;
+  background-size: 15px 15px;
+}
+
+:root {
+  --rosette: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cg fill='none' stroke='%236f6a61' stroke-width='1'%3E%3Ccircle cx='8' cy='8' r='6.5'/%3E%3Cpath d='M8 3.2 11 8 8 12.8 5 8Z'/%3E%3C/g%3E%3Ccircle cx='8' cy='8' r='1.3' fill='%236f6a61'/%3E%3C/svg%3E");
 }

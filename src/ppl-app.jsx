@@ -16,25 +16,44 @@ import {
    deliberately unlike the other app on this domain, so the two home-screen
    icons and the two apps are never mistaken for each other.
    INK is a raised surface here, not the type colour — TEXT is the type. */
-const BG = "#0B0C0F";
-const INK = "#101319";
-const CARD = "#161A21";
-const WASH = "#1B2027";
-const RAISED = "#212833";
-const RULE = "#2C333E";
-const MUTE = "#98A2B3";
-const TEXT = "#F3F5F8";
-const GRID = "#242B35";
-/* bright enough to carry on black; type sitting on one of these goes dark */
-const PUSH_C = "#3B82F6";
-const PULL_C = "#22D3EE";
-const LEGS_C = "#A78BFA";
-const REST_C = "#7C8AA0";
-const WIN = "#34D399";
-const WARN = "#F87171";
-const ON_ACCENT = "#0B0C0F";
-const DISPLAY = "'Arial Black','Helvetica Neue',Impact,sans-serif";
-const BODY = "'Helvetica Neue',Arial,Helvetica,sans-serif";
+/* Every colour and face is a CSS variable, so flipping data-theme on the root
+   repaints the whole app without threading a palette through the tree.
+   The two palettes live in ppl-theme.css. */
+const BG = "var(--bg)";
+const INK = "var(--ink)";
+const CARD = "var(--card)";
+const WASH = "var(--wash)";
+const RAISED = "var(--raised)";
+const RULE = "var(--rule)";
+const MUTE = "var(--mute)";
+const TEXT = "var(--text)";
+const GRID = "var(--grid)";
+const PUSH_C = "var(--push)";
+const PULL_C = "var(--pull)";
+const LEGS_C = "var(--legs)";
+const REST_C = "var(--rest)";
+const WIN = "var(--win)";
+const WARN = "var(--warn)";
+const ON_ACCENT = "var(--on-accent)";
+/* charts need a step that carries on the ground at 2px, which the fill
+   colours do not always do */
+const CHART = "var(--chart)";
+const CHART_OK = "var(--chart-ok)";
+/* WIN reads as a fill; type that means "up" needs a lighter step of it */
+const GOOD = "var(--good-text)";
+/* chart labels always take a face with lining figures: an old-style 6 in a
+   serif reads as a b, which is no good on an axis */
+const FIGURES = "var(--figures)";
+/* the day accents are fill colours; as type on the ground they need a lighter
+   step, which gothic's blood red in particular does not have */
+const ACCENT_TEXT = "var(--accent-text)";
+
+const THEMES = {
+  steel: { label: "Steel", note: "Blue on black." },
+  gothic: { label: "Gothic", note: "Iron, bone and blood red." },
+};
+const DISPLAY = "var(--display)";
+const BODY = "var(--body)";
 
 const LIBRARY = {
   chest: ["Bench press", "Incline bench press", "Cable flys"],
@@ -293,7 +312,7 @@ const bestPerDay = (hist) => {
 
 /* ============================ shared UI ============================ */
 
-function Btn({ children, onClick, style, aria }) {
+function Btn({ children, onClick, style, aria, plain }) {
   return (
     <button
       onClick={onClick}
@@ -302,8 +321,9 @@ function Btn({ children, onClick, style, aria }) {
         border: "none",
         borderRadius: 12,
         cursor: "pointer",
-        fontFamily: DISPLAY,
-        letterSpacing: "-0.02em",
+        /* blackletter is unreadable at control sizes, so small buttons opt out */
+        fontFamily: plain ? BODY : DISPLAY,
+        letterSpacing: plain ? "0.02em" : "-0.02em",
         textTransform: "uppercase",
         ...style,
       }}
@@ -478,6 +498,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
             {session.label} &middot; Day {session.pos} of {CYCLE_LEN}
           </div>
           <Btn
+            plain
             onClick={onQuit}
             style={{
               background: "transparent",
@@ -529,6 +550,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
             padding: "10px 12px",
             marginBottom: 14,
           }}
+          className="orn"
         >
           <div
             style={{
@@ -561,6 +583,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
         {sets.map((s, si) => (
           <div
             key={si}
+            className="orn"
             style={{
               border: `1px solid ${s.done ? WIN : RULE}`,
               borderRadius: 14,
@@ -669,6 +692,7 @@ function ExerciseDetail({ name, hist, onBack }) {
     >
       <div style={{ background: INK, color: TEXT, padding: "14px 16px 16px" }}>
         <Btn
+          plain
           onClick={onBack}
           style={{
             background: "transparent",
@@ -886,16 +910,15 @@ function TrendChart({ points, unit, color, label, selected, onSelect }) {
     >
       {ticks.map((t, i) => (
         <g key={i}>
-          <line x1={L} x2={R} y1={y(t)} y2={y(t)} stroke={GRID} strokeWidth="1" />
+          <line x1={L} x2={R} y1={y(t)} y2={y(t)} style={{ stroke: GRID }} strokeWidth="1" />
           <text
             x={L - 6}
             y={y(t) + 4}
             textAnchor="end"
             fontSize="11"
             fontWeight="700"
-            fill={MUTE}
-            fontFamily={BODY}
-            style={{ fontVariantNumeric: "tabular-nums" }}
+            fontFamily={FIGURES}
+            style={{ fill: MUTE, fontVariantNumeric: "tabular-nums" }}
           >
             {fmtTick(t)}
           </text>
@@ -906,7 +929,7 @@ function TrendChart({ points, unit, color, label, selected, onSelect }) {
         <polyline
           points={path}
           fill="none"
-          stroke={color}
+          style={{ stroke: color }}
           strokeWidth="2"
           strokeLinejoin="round"
           strokeLinecap="round"
@@ -920,26 +943,25 @@ function TrendChart({ points, unit, color, label, selected, onSelect }) {
             cx={x(p)}
             cy={y(p.v)}
             r={i === points.length - 1 ? 5 : 4}
-            fill={color}
-            stroke={BG}
+            style={{ fill: color, stroke: BG }}
             strokeWidth="2"
           />
         ))}
 
       {!showDots && (
-        <circle cx={x(lastP)} cy={y(lastP.v)} r="5" fill={color} stroke={BG} strokeWidth="2" />
+        <circle cx={x(lastP)} cy={y(lastP.v)} r="5" style={{ fill: color, stroke: BG }} strokeWidth="2" />
       )}
 
       {sel && (
         <g>
-          <line x1={x(sel)} x2={x(sel)} y1={T} y2={B} stroke={INK} strokeWidth="1" />
-          <circle cx={x(sel)} cy={y(sel.v)} r="6" fill={TEXT} stroke={BG} strokeWidth="2" />
+          <line x1={x(sel)} x2={x(sel)} y1={T} y2={B} style={{ stroke: MUTE }} strokeWidth="1" />
+          <circle cx={x(sel)} cy={y(sel.v)} r="6" style={{ fill: TEXT, stroke: BG }} strokeWidth="2" />
         </g>
       )}
 
-      <line x1={L} x2={R} y1={B} y2={B} stroke={RULE} strokeWidth="1" />
+      <line x1={L} x2={R} y1={B} y2={B} style={{ stroke: RULE }} strokeWidth="1" />
 
-      <text x={L} y={B + 18} fontSize="11" fontWeight="700" fill={MUTE} fontFamily={BODY}>
+      <text x={L} y={B + 18} fontSize="11" fontWeight="700" style={{ fill: MUTE }} fontFamily={FIGURES}>
         {shortDate(points[0].d)}
       </text>
       {points.length > 1 && (
@@ -949,8 +971,8 @@ function TrendChart({ points, unit, color, label, selected, onSelect }) {
           textAnchor="end"
           fontSize="11"
           fontWeight="700"
-          fill={MUTE}
-          fontFamily={BODY}
+          style={{ fill: MUTE }}
+          fontFamily={FIGURES}
         >
           {shortDate(lastP.d)}
         </text>
@@ -1019,7 +1041,7 @@ function BlockCard({ b, goal }) {
       <span style={{ fontFamily: DISPLAY, fontSize: 15, flexShrink: 0, letterSpacing: "-0.02em" }}>
         {m.from.w}×{m.from.r}
         <span style={{ color: MUTE }}> → </span>
-        <span style={{ color: up ? WIN : INK }}>
+        <span style={{ color: up ? GOOD : MUTE }}>
           {m.to.w}×{m.to.r}
         </span>
       </span>
@@ -1118,7 +1140,7 @@ function BlockCard({ b, goal }) {
               <span style={{ color: MUTE }}> → </span>
               {b.weightTo}kg
               {b.weightChange != null && (
-                <span style={{ color: b.weightChange > 0 ? INK : WIN, marginLeft: 6 }}>
+                <span style={{ color: b.weightChange > 0 ? MUTE : GOOD, marginLeft: 6 }}>
                   {b.weightChange > 0 ? "+" : ""}
                   {b.weightChange}
                 </span>
@@ -1167,6 +1189,7 @@ function ReportScreen({ blocks, goal, onBack }) {
     >
       <div style={{ background: INK, color: TEXT, padding: "14px 16px 16px" }}>
         <Btn
+          plain
           onClick={onBack}
           style={{
             background: "transparent",
@@ -1240,6 +1263,7 @@ function AddExercise({ group, existing, onAdd }) {
           }}
         />
         <Btn
+          plain
           onClick={() => {
             if (!valid) return;
             onAdd(name);
@@ -1288,15 +1312,15 @@ function WeekBars({ weeks, target }) {
     >
       {[top, target].map((v, i) => (
         <g key={i}>
-          <line x1={L} x2={R} y1={y(v)} y2={y(v)} stroke={i ? RULE : GRID} strokeWidth="1" />
+          <line x1={L} x2={R} y1={y(v)} y2={y(v)} style={{ stroke: i ? RULE : GRID }} strokeWidth="1" />
           <text
             x={L - 5}
             y={y(v) + 4}
             textAnchor="end"
             fontSize="10"
             fontWeight="800"
-            fill={MUTE}
-            fontFamily={BODY}
+            style={{ fill: MUTE }}
+            fontFamily={FIGURES}
           >
             {v}
           </text>
@@ -1315,8 +1339,10 @@ function WeekBars({ weeks, target }) {
                 width={barW}
                 height={h}
                 rx="4"
-                fill={w.running ? "none" : w.n >= target ? WIN : PUSH_C}
-                stroke={w.running ? PUSH_C : "none"}
+                style={{
+                  fill: w.running ? "none" : w.n >= target ? CHART_OK : CHART,
+                  stroke: w.running ? CHART : "none",
+                }}
                 strokeWidth="2"
               />
             )}
@@ -1326,8 +1352,8 @@ function WeekBars({ weeks, target }) {
               textAnchor="middle"
               fontSize="10"
               fontWeight="800"
-              fill={MUTE}
-              fontFamily={BODY}
+              style={{ fill: MUTE }}
+              fontFamily={FIGURES}
             >
               {w.label}
             </text>
@@ -1338,8 +1364,8 @@ function WeekBars({ weeks, target }) {
                 textAnchor="middle"
                 fontSize="12"
                 fontWeight="800"
-                fill={TEXT}
-                fontFamily={BODY}
+                style={{ fill: TEXT }}
+                fontFamily={FIGURES}
               >
                 {w.n}
               </text>
@@ -1348,9 +1374,9 @@ function WeekBars({ weeks, target }) {
         );
       })}
 
-      <line x1={L} x2={R} y1={B} y2={B} stroke={RULE} strokeWidth="1" />
-      <text x={L} y={H - 6} fontSize="10" fontWeight="700" fill={MUTE} fontFamily={BODY}>
-        Green clears the week&rsquo;s target of {target}. This week is still open.
+      <line x1={L} x2={R} y1={B} y2={B} style={{ stroke: RULE }} strokeWidth="1" />
+      <text x={L} y={H - 6} fontSize="10" fontWeight="700" style={{ fill: MUTE }} fontFamily={FIGURES}>
+        Reaching the line clears the week&rsquo;s target of {target}. This week is still open.
       </text>
     </svg>
   );
@@ -1379,7 +1405,7 @@ function WeightCard({ todayKg, lastKg, onSave }) {
   };
 
   return (
-    <div style={{ border: `1px solid ${RULE}`, borderRadius: 14, padding: "12px 12px 14px", marginTop: 12 }}>
+    <div className="orn" style={{ border: `1px solid ${RULE}`, borderRadius: 14, padding: "12px 12px 14px", marginTop: 12 }}>
       <SectionLabel style={{ marginBottom: 8 }}>
         {todayKg != null ? "Today — logged" : "Today's weigh-in"}
       </SectionLabel>
@@ -1542,7 +1568,7 @@ function BackupCard({ app, prefix, keys, accent }) {
       )}
 
       {stage === "confirm" && sum && (
-        <div style={{ border: `1px solid ${accent}`, borderRadius: 14, padding: "12px 12px 14px" }}>
+        <div className="orn" style={{ border: `1px solid ${accent}`, borderRadius: 14, padding: "12px 12px 14px" }}>
           <div
             style={{
               fontFamily: DISPLAY,
@@ -1625,6 +1651,7 @@ export default function PPLHub() {
   /* positions 5-7 exist only in the old seven-day rotation; fold them back in */
   const [pos, setPos] = useState(((profile.pos || 1) - 1) % CYCLE_LEN + 1);
   const [goal, setGoal] = useState(profile.goal || "maintain");
+  const [theme, setTheme] = useState(profile.theme || "steel");
   const [days, setDays] = useState(() => loadJSON("ppl-days", {}));
   const [lifts, setLifts] = useState(() => loadJSON("ppl-lifts", {}));
   const [weights, setWeights] = useState(() => loadJSON("ppl-weight", {}));
@@ -1660,11 +1687,12 @@ export default function PPLHub() {
   };
 
   const saveProfile = (next) => {
-    const merged = { picks, pos, goal, custom, ...next };
+    const merged = { picks, pos, goal, custom, theme, ...next };
     if (next.picks) setPicks(next.picks);
     if (next.pos) setPos(next.pos);
     if (next.goal) setGoal(next.goal);
     if (next.custom) setCustom(next.custom);
+    if (next.theme) setTheme(next.theme);
     persist("ppl-profile", merged);
   };
 
@@ -1681,6 +1709,18 @@ export default function PPLHub() {
       custom: { ...custom, [g]: (custom[g] || []).filter((n) => n !== name) },
       picks: { ...picks, [g]: (picks[g] || []).filter((n) => n !== name) },
     });
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) {
+      meta.setAttribute(
+        "content",
+        getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() ||
+          "#0B0C0F"
+      );
+    }
+  }, [theme]);
 
   const t = today();
   const flags = days[t] || {};
@@ -1727,7 +1767,7 @@ export default function PPLHub() {
 
     persist("ppl-lifts", nextLifts);
     persist("ppl-days", nextDays);
-    persist("ppl-profile", { picks, pos: nextPos, goal, custom });
+    persist("ppl-profile", { picks, pos: nextPos, goal, custom, theme });
   };
 
   const saved = loadJSON("ppl-reports", {});
@@ -1865,7 +1905,7 @@ export default function PPLHub() {
 
           <div style={{ padding: "14px 16px 0" }}>
             {isRest ? (
-              <div style={{ background: WASH, padding: "16px 14px", borderRadius: 12, borderLeft: `3px solid ${REST_C}` }}>
+              <div className="orn" style={{ background: WASH, padding: "16px 14px", borderRadius: 12, borderLeft: `3px solid ${REST_C}` }}>
                 <div
                   style={{
                     fontFamily: DISPLAY,
@@ -1912,7 +1952,7 @@ export default function PPLHub() {
                       style={{
                         fontSize: 16,
                         fontWeight: 700,
-                        color: session.accent,
+                        color: ACCENT_TEXT,
                         marginTop: 4,
                       }}
                     >
@@ -2151,7 +2191,7 @@ export default function PPLHub() {
                             justifyContent: "center",
                             background: on ? WIN : WASH,
                             border: `1px solid ${on ? WIN : off ? WASH : RULE}`,
-                            color: RULE,
+                            color: MUTE,
                             fontSize: 11,
                             fontWeight: 800,
                           }}
@@ -2214,7 +2254,7 @@ export default function PPLHub() {
                       style={{
                         fontFamily: DISPLAY,
                         fontSize: 20,
-                        color: up ? WIN : TEXT,
+                        color: up ? GOOD : TEXT,
                         flexShrink: 0,
                       }}
                     >
@@ -2365,6 +2405,34 @@ export default function PPLHub() {
           </div>
 
           <div style={{ padding: "14px 16px 0" }}>
+            <SectionLabel style={{ marginBottom: 8 }}>Look</SectionLabel>
+            <div style={{ display: "flex", gap: 6 }}>
+              {Object.entries(THEMES).map(([k, th]) => {
+                const on = theme === k;
+                return (
+                  <Btn
+                    key={k}
+                    onClick={() => saveProfile({ theme: k })}
+                    style={{
+                      flex: 1,
+                      padding: "16px 4px",
+                      fontSize: 17,
+                      background: on ? PUSH_C : CARD,
+                      color: on ? ON_ACCENT : TEXT,
+                      border: `1px solid ${on ? PUSH_C : RULE}`,
+                    }}
+                  >
+                    {th.label}
+                  </Btn>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 14, color: MUTE, marginTop: 8 }}>
+              {THEMES[theme].note}
+            </div>
+
+            <div style={{ borderTop: `1px solid ${RULE}`, marginTop: 20, paddingTop: 14 }} />
+
             <SectionLabel style={{ marginBottom: 8 }}>Right now I&rsquo;m on a</SectionLabel>
             <div style={{ display: "flex", gap: 6 }}>
               {Object.entries(GOALS).map(([k, g]) => {
@@ -2531,6 +2599,7 @@ export default function PPLHub() {
         ].map(([k, label]) => (
           <Btn
             key={k}
+            plain
             onClick={() => setTab(k)}
             style={{
               flex: 1,

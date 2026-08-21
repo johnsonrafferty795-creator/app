@@ -126,11 +126,19 @@ other.
 ## Look
 
 The two apps are deliberately unalike, so neither is opened by mistake. The
-original is black on white with a red accent. The PPL app is dark — a near-black
-ground, one bright accent per day type, and `src/ppl-theme.css` layered over the
-shared `index.css` so only it goes dark. Type sitting on a bright accent is dark
-rather than white; every label was checked against its computed background for
-WCAG AA.
+original is black on white with a red accent.
+
+The PPL app is dark, and carries two themes switched from its Plan tab:
+**Steel** (blue on black) and **Gothic** (iron, bone and blood red, set in
+Grenze Gotisch with a double rule and corner rosettes on its panels). Every
+colour and face is a CSS variable, so the switch is one `data-theme` attribute
+on the root — see `src/ppl-theme.css`. SVG takes its colours through `style`
+rather than presentation attributes, which do not resolve `var()`.
+
+Two things the palettes must each answer for: type sitting on an accent fill
+goes dark in Steel and light in Gothic, and an accent used as *type* needs its
+own lighter step. Every label on every screen of both themes was checked against
+its computed background for WCAG AA.
 
 Charts are single-series, drawn as inline SVG: a line for anything over time
 (body weight, and each exercise's weight), bars for sessions a week. Every value

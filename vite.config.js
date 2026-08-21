@@ -54,7 +54,7 @@ export default defineConfig({
         icons: shared.icons,
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,png,svg,ico,webmanifest}"],
+        globPatterns: ["**/*.{js,css,html,png,svg,ico,webmanifest,woff2}"],
         /* every route falls back to the cached shell, so it opens with no signal */
         navigateFallback: "index.html",
         /* the outer app's worker also has the inner app inside its scope — keep
