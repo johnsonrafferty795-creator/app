@@ -49,8 +49,8 @@ export default defineConfig({
         scope: "./",
         display: "standalone",
         orientation: "portrait",
-        background_color: "#FFFFFF",
-        theme_color: isPPL ? "#0B1220" : "#0D1014",
+        background_color: isPPL ? "#0B0C0F" : "#FFFFFF",
+        theme_color: isPPL ? "#0B0C0F" : "#0D1014",
         icons: shared.icons,
       },
       workbox: {

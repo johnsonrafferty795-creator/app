@@ -122,3 +122,17 @@ JSON file through the iOS share sheet, falling back to a download elsewhere.
 the phone's current data is written over. A backup is stamped with the app it
 came from, since the two share an origin and would otherwise overwrite each
 other.
+
+## Look
+
+The two apps are deliberately unalike, so neither is opened by mistake. The
+original is black on white with a red accent. The PPL app is dark — a near-black
+ground, one bright accent per day type, and `src/ppl-theme.css` layered over the
+shared `index.css` so only it goes dark. Type sitting on a bright accent is dark
+rather than white; every label was checked against its computed background for
+WCAG AA.
+
+Charts are single-series, drawn as inline SVG: a line for anything over time
+(body weight, and each exercise's weight), bars for sessions a week. Every value
+a chart shows is also written out underneath, so the graph is never the only way
+to read a number.

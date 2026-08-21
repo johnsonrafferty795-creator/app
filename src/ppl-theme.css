@@ -1,0 +1,25 @@
+/* Dark gym. Loaded only by the PPL app — the other app on this domain stays
+   light, and the two share index.css. */
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: #0b0c0f;
+  color: #f3f5f8;
+}
+
+button:focus-visible {
+  outline: 4px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* the number fields in the set logger and the weigh-in */
+input {
+  color: #f3f5f8;
+  caret-color: #3b82f6;
+}
+
+input::placeholder {
+  color: #6b7480;
+}
