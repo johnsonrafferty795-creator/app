@@ -2,64 +2,96 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
-/* Two apps, one site, one deploy:
+/* Three apps, one site, one deploy:
  *   APP unset  → the original tracker at BASE_PATH        (…/app/)
  *   APP=ppl    → the push/pull/legs tracker one level down (…/app/ppl/)
- * Each gets its own manifest, icons and service worker, so they install as two
+ *   APP=dogs   → the dog training tracker                  (…/app/dogs/)
+ * Each gets its own manifest, icons and service worker, so they install as
  * separate home-screen apps and cache independently.
  *
  * BASE_PATH lets the same build work at a domain root (Netlify, Vercel) and
  * under a subpath (GitHub Pages: BASE_PATH=/app/).
  */
 const root = process.env.BASE_PATH || "/";
-const isPPL = process.env.APP === "ppl";
+/* the outer app is the one with no folder of its own */
+const app = process.env.APP || "";
 
-const shared = {
-  registerType: "autoUpdate",
-  includeAssets: ["apple-touch-icon.png"],
-  icons: [
-    { src: "icon-192.png", sizes: "192x192", type: "image/png" },
-    { src: "icon-512.png", sizes: "512x512", type: "image/png" },
-    {
-      src: "icon-maskable-512.png",
-      sizes: "512x512",
-      type: "image/png",
-      purpose: "maskable",
-    },
-  ],
+const META = {
+  "": {
+    name: "Workout",
+    short: "Workout",
+    description: "Gym sessions, progressive overload and daily habits.",
+    background: "#FFFFFF",
+    theme: "#0D1014",
+  },
+  ppl: {
+    name: "PPL",
+    short: "PPL",
+    description: "Push pull legs, progressive overload, and body weight.",
+    background: "#0B0C0F",
+    theme: "#0B0C0F",
+  },
+  dogs: {
+    name: "Dog Training",
+    short: "Dogs",
+    description: "Daily training checklists for Maisie and George.",
+    background: "#FAF6EF",
+    theme: "#1F6A4A",
+  },
 };
 
+const meta = META[app];
+if (!meta) throw new Error(`Unknown APP: ${app}`);
+
+/* the inner apps live in a folder each; the outer one owns the root */
+const inner = app !== "";
+
+const icons = [
+  { src: "icon-192.png", sizes: "192x192", type: "image/png" },
+  { src: "icon-512.png", sizes: "512x512", type: "image/png" },
+  {
+    src: "icon-maskable-512.png",
+    sizes: "512x512",
+    type: "image/png",
+    purpose: "maskable",
+  },
+];
+
 export default defineConfig({
-  root: isPPL ? "ppl" : ".",
-  base: isPPL ? `${root}ppl/` : root,
-  build: isPPL ? { outDir: "../dist/ppl", emptyOutDir: true } : {},
+  root: inner ? app : ".",
+  base: inner ? `${root}${app}/` : root,
+  build: inner ? { outDir: `../dist/${app}`, emptyOutDir: true } : {},
   plugins: [
     react(),
     VitePWA({
-      registerType: shared.registerType,
-      includeAssets: shared.includeAssets,
+      registerType: "autoUpdate",
+      includeAssets: ["apple-touch-icon.png"],
       manifest: {
-        name: isPPL ? "PPL" : "Workout",
-        short_name: isPPL ? "PPL" : "Workout",
-        description: isPPL
-          ? "Push pull legs, progressive overload, and body weight."
-          : "Gym sessions, progressive overload and daily habits.",
+        name: meta.name,
+        short_name: meta.short,
+        description: meta.description,
         /* relative, so it also works when served from a subpath */
         start_url: "./",
         scope: "./",
         display: "standalone",
         orientation: "portrait",
-        background_color: isPPL ? "#0B0C0F" : "#FFFFFF",
-        theme_color: isPPL ? "#0B0C0F" : "#0D1014",
-        icons: shared.icons,
+        background_color: meta.background,
+        theme_color: meta.theme,
+        icons,
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,png,svg,ico,webmanifest,woff2}"],
         /* every route falls back to the cached shell, so it opens with no signal */
         navigateFallback: "index.html",
-        /* the outer app's worker also has the inner app inside its scope — keep
-           it from answering navigations that belong to the other app */
-        ...(isPPL ? {} : { navigateFallbackDenylist: [/\/ppl\//] }),
+        /* the outer app's worker also has the inner apps inside its scope — keep
+           it from answering navigations that belong to one of them */
+        ...(inner
+          ? {}
+          : {
+              navigateFallbackDenylist: Object.keys(META)
+                .filter(Boolean)
+                .map((name) => new RegExp(`/${name}/`)),
+            }),
         cleanupOutdatedCaches: true,
         clientsClaim: true,
       },

@@ -1,0 +1,53 @@
+/* The dog training app: warm paper, black type, big targets.
+ *
+ * The two workout apps on this domain load their own themes; this file is only
+ * pulled in by dogs/main.jsx, so nothing here can reach them.
+ */
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background: #faf6ef;
+  color: #23201b;
+  /* it is read at arm's length, on a phone, by someone who should not have to
+     squint or hunt for the next thing to tap */
+  font-size: 18px;
+}
+
+button:focus-visible {
+  outline: 4px solid #1f6a4a;
+  outline-offset: 2px;
+}
+
+input {
+  font-family: inherit;
+}
+
+input::placeholder {
+  color: #7c7469;
+}
+
+/* The tick animates in, so a tap is felt as well as seen. */
+@keyframes pop {
+  0% {
+    transform: scale(0.6);
+  }
+  60% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.pop {
+  animation: pop 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pop {
+    animation: none;
+  }
+}

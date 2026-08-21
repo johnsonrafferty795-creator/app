@@ -1,16 +1,18 @@
 # Workout
 
-Two offline, installable workout trackers built from one repo. Vite + React,
+Three offline, installable trackers built from one repo. Vite + React,
 everything stored on the phone itself.
 
-| App | Lives at | Split |
+| App | Lives at | What it tracks |
 | --- | --- | --- |
 | **Workout** | `/` | 2-week rotation, 3 days a week |
 | **PPL** | `/ppl/` | Push, Pull, Legs, Rest |
+| **Dog Training** | `/dogs/` | Two dogs' daily training checklists |
 
-They build, install and cache separately — two home-screen icons, two stores of
-data, one deploy. `src/workout-app.jsx` and `src/ppl-app.jsx` are deliberately
-kept as independent files: neither can break the other.
+They build, install and cache separately — three home-screen icons, three stores
+of data, one deploy. `src/workout-app.jsx`, `src/ppl-app.jsx` and
+`src/dogs-app.jsx` are deliberately kept as independent files: none can break
+another.
 
 ## Workout
 
@@ -51,8 +53,8 @@ Everything lives in `localStorage` under three keys, wrapped by `src/storage.js`
 | `ppl-weight` | one body-weight reading per day, for the graph      |
 | `ppl-reports`| frozen four-week summaries, one per closed block    |
 
-The two apps share an origin, so the `wk-` / `ppl-` prefixes are what keep them
-out of each other's data.
+The apps share an origin, so the `wk-` / `ppl-` / `dg-` prefixes are what keep
+them out of each other's data.
 
 No account, no network, no sync — the data belongs to the phone it was entered
 on. Clearing the browser's site data wipes it, and "Add to Home Screen" on iOS
@@ -75,7 +77,7 @@ https://<username>.github.io/<repo>/
 ### Anywhere else
 
 ```sh
-npm run build   # builds both apps; then drag dist/ onto app.netlify.com/drop
+npm run build   # builds all three apps; then drag dist/ onto app.netlify.com/drop
 ```
 
 Netlify, Vercel, and Cloudflare Pages all serve `dist/` as-is from the domain
@@ -103,30 +105,51 @@ The goal drives cardio only: **bulk** none, **cut** every day, **maintain**
 every training day (so it skips the rest day) — three days in four, about five
 a week.
 
+## Dog Training
+
+The third app, at `/dogs/`. A daily checklist per dog, built for someone who
+wants to open it, see what is left, tap it and put the phone down.
+
+- **Today** — both dogs, how much of each list is done, tap through to either
+- **Maisie** (German Shorthaired Pointer) and **George** (Border Terrier) — a
+  page each, nine tasks each, from their own training routine. The two rated
+  non-negotiable for the breed (recall and real exercise) are marked **must**
+- **This week** — per dog: share of the list done, complete days, the current
+  streak, the seven days as bars, and every task tallied out of 7, with the
+  most-missed one named and the week before to compare against
+
+The lists reset by date rather than being cleared, so the seven-day strip at the
+top of a dog's page can go back and tick a day finished after the fact. There is
+one optional note a day per dog. Nothing else to set up, no accounts, no
+settings screen.
+
 ## Icons
 
-`public/*.png` and `ppl/public/*.png` are generated with the standard library
-only — a red dumbbell for one app, a blue plate for the other:
+`public/*.png`, `ppl/public/*.png` and `dogs/public/*.png` are generated with
+the standard library only — a red dumbbell for one app, a blue plate for the
+second, a white paw on green for the third:
 
 ```sh
 python3 tools/make-icons.py
 python3 tools/make-ppl-icons.py
+python3 tools/make-dogs-icons.py
 ```
 
 ## Backup
 
-Both apps keep everything on the one phone, so each has an **Export a backup**
-button — Plan tab in the PPL app, Exercises tab in the other. It writes a dated
+Every app keeps everything on the one phone, so each has an **Export a backup**
+button — Plan tab in the PPL app, Exercises tab in the first, Week tab in the
+dog app. It writes a dated
 JSON file through the iOS share sheet, falling back to a download elsewhere.
 **Restore from a file** puts it back, after saying what the file holds and that
 the phone's current data is written over. A backup is stamped with the app it
-came from, since the two share an origin and would otherwise overwrite each
+came from, since they share an origin and would otherwise overwrite each
 other.
 
 ## Look
 
-The two apps are deliberately unalike, so neither is opened by mistake. The
-original is black on white with a red accent.
+The apps are deliberately unalike, so none is opened by mistake. The original is
+black on white with a red accent.
 
 The PPL app is dark, and carries two themes switched from its Plan tab:
 **Steel** (blue on black) and **Gothic** (iron, bone and blood red, set in
@@ -139,6 +162,10 @@ Two things the palettes must each answer for: type sitting on an accent fill
 goes dark in Steel and light in Gothic, and an accent used as *type* needs its
 own lighter step. Every label on every screen of both themes was checked against
 its computed background for WCAG AA.
+
+The dog app is the warm one: paper-coloured background, a liver brown for
+Maisie and a teal for George, green for anything done. Type starts at 18px and
+every task is one full-width button, tick box and all — see `src/dogs-theme.css`.
 
 Charts are single-series, drawn as inline SVG: a line for anything over time
 (body weight, and each exercise's weight), bars for sessions a week. Every value
