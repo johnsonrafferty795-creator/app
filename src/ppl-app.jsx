@@ -300,6 +300,7 @@ function Btn({ children, onClick, style, aria }) {
       aria-label={aria}
       style={{
         border: "none",
+        borderRadius: 12,
         cursor: "pointer",
         fontFamily: DISPLAY,
         letterSpacing: "-0.02em",
@@ -320,7 +321,7 @@ function Stepper({ label, value, unit, onChange, step, min }) {
     height: 56,
     fontSize: 30,
     background: CARD,
-    border: `3px solid ${MUTE}`,
+    border: `1px solid ${MUTE}`,
     color: TEXT,
     lineHeight: 1,
     flexShrink: 0,
@@ -524,6 +525,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
           style={{
             background: beaten ? WIN : WASH,
             color: beaten ? ON_ACCENT : TEXT,
+            borderRadius: 12,
             padding: "10px 12px",
             marginBottom: 14,
           }}
@@ -560,7 +562,8 @@ function Session({ session, lifts, onFinish, onQuit }) {
           <div
             key={si}
             style={{
-              border: `3px solid ${s.done ? WIN : RULE}`,
+              border: `1px solid ${s.done ? WIN : RULE}`,
+              borderRadius: 14,
               padding: "10px 12px 12px",
               marginBottom: 10,
               background: s.done ? "#12261F" : CARD,
@@ -692,7 +695,7 @@ function ExerciseDetail({ name, hist, onBack }) {
       </div>
 
       <div style={{ padding: "14px 16px 0" }}>
-        <div style={{ background: WIN, color: ON_ACCENT, padding: "12px 14px" }}>
+        <div style={{ background: WIN, color: ON_ACCENT, padding: "12px 14px", borderRadius: 12 }}>
           <div
             style={{
               fontSize: 12,
@@ -728,7 +731,7 @@ function ExerciseDetail({ name, hist, onBack }) {
           ].map(([label, val]) => (
             <div
               key={label}
-              style={{ flex: 1, background: WASH, padding: "10px 8px", textAlign: "center" }}
+              style={{ flex: 1, background: WASH, padding: "10px 8px", textAlign: "center", borderRadius: 10 }}
             >
               <div style={{ fontFamily: DISPLAY, fontSize: 19, letterSpacing: "-0.02em" }}>
                 {val}
@@ -780,6 +783,7 @@ function ExerciseDetail({ name, hist, onBack }) {
                 position: "relative",
                 marginBottom: 6,
                 background: WASH,
+                borderRadius: 10,
                 overflow: "hidden",
               }}
             >
@@ -1008,7 +1012,7 @@ function BlockCard({ b, goal }) {
         padding: "11px 12px",
         background: WASH,
         marginBottom: 5,
-        borderLeft: `6px solid ${up ? WIN : RULE}`,
+        borderLeft: `3px solid ${up ? WIN : RULE}`,
       }}
     >
       <span style={{ fontSize: 15, fontWeight: 700, minWidth: 0 }}>{m.name}</span>
@@ -1068,7 +1072,7 @@ function BlockCard({ b, goal }) {
               marginTop: 8,
               padding: "10px 12px",
               background: missed.length ? WASH : "#EFF6F1",
-              borderLeft: `6px solid ${missed.length ? REST_C : WIN}`,
+              borderLeft: `3px solid ${missed.length ? REST_C : WIN}`,
               fontSize: 15,
               fontWeight: 700,
               lineHeight: 1.4,
@@ -1225,7 +1229,8 @@ function AddExercise({ group, existing, onAdd }) {
           style={{
             flex: 1,
             minWidth: 0,
-            border: `3px solid ${RULE}`,
+            border: `1px solid ${RULE}`,
+            borderRadius: 10,
             padding: "12px 10px",
             fontSize: 16,
             fontFamily: BODY,
@@ -1367,14 +1372,14 @@ function WeightCard({ todayKg, lastKg, onSave }) {
     height: 62,
     fontSize: 26,
     background: CARD,
-    border: `3px solid ${MUTE}`,
+    border: `1px solid ${MUTE}`,
     color: TEXT,
     lineHeight: 1,
     flexShrink: 0,
   };
 
   return (
-    <div style={{ border: `3px solid ${RULE}`, padding: "12px 12px 14px", marginTop: 12 }}>
+    <div style={{ border: `1px solid ${RULE}`, borderRadius: 14, padding: "12px 12px 14px", marginTop: 12 }}>
       <SectionLabel style={{ marginBottom: 8 }}>
         {todayKg != null ? "Today — logged" : "Today's weigh-in"}
       </SectionLabel>
@@ -1485,7 +1490,7 @@ function BackupCard({ app, prefix, keys, accent }) {
   const sum = pending ? summarise(pending, prefix) : null;
 
   return (
-    <div style={{ borderTop: `2px solid ${RULE}`, marginTop: 20, paddingTop: 14 }}>
+    <div style={{ borderTop: `1px solid ${RULE}`, marginTop: 20, paddingTop: 14 }}>
       <SectionLabel style={{ marginBottom: 8 }}>Backup</SectionLabel>
       <div style={{ fontSize: 15, color: MUTE, lineHeight: 1.4, marginBottom: 10 }}>
         Everything is stored on this phone and nowhere else. Save a copy now and
@@ -1520,7 +1525,8 @@ function BackupCard({ app, prefix, keys, accent }) {
               textAlign: "center",
               background: CARD,
               color: TEXT,
-              border: `3px solid ${RULE}`,
+              border: `1px solid ${RULE}`,
+              borderRadius: 12,
               cursor: "pointer",
             }}
           >
@@ -1536,7 +1542,7 @@ function BackupCard({ app, prefix, keys, accent }) {
       )}
 
       {stage === "confirm" && sum && (
-        <div style={{ border: `3px solid ${accent}`, padding: "12px 12px 14px" }}>
+        <div style={{ border: `1px solid ${accent}`, borderRadius: 14, padding: "12px 12px 14px" }}>
           <div
             style={{
               fontFamily: DISPLAY,
@@ -1586,7 +1592,7 @@ function BackupCard({ app, prefix, keys, accent }) {
               fontSize: 16,
               background: CARD,
               color: TEXT,
-              border: `3px solid ${RULE}`,
+              border: `1px solid ${RULE}`,
             }}
           >
             Cancel
@@ -1844,7 +1850,8 @@ export default function PPLHub() {
                   color: ON_ACCENT,
                   background: session.accent,
                   display: "inline-block",
-                  padding: "6px 10px",
+                  padding: "6px 12px",
+                  borderRadius: 999,
                   textTransform: "uppercase",
                   letterSpacing: "-0.02em",
                 }}
@@ -1858,7 +1865,7 @@ export default function PPLHub() {
 
           <div style={{ padding: "14px 16px 0" }}>
             {isRest ? (
-              <div style={{ background: WASH, padding: "16px 14px", borderLeft: `8px solid ${REST_C}` }}>
+              <div style={{ background: WASH, padding: "16px 14px", borderRadius: 12, borderLeft: `3px solid ${REST_C}` }}>
                 <div
                   style={{
                     fontFamily: DISPLAY,
@@ -1890,7 +1897,7 @@ export default function PPLHub() {
             ) : (
               <>
                 {session.items.length === 0 ? (
-                  <div style={{ background: WASH, padding: "14px 12px", borderLeft: `8px solid ${REST_C}` }}>
+                  <div style={{ background: WASH, padding: "14px 12px", borderRadius: 12, borderLeft: `3px solid ${REST_C}` }}>
                     <div style={{ fontSize: 16, lineHeight: 1.35 }}>
                       Nothing ticked for today&rsquo;s muscle groups. Open{" "}
                       <strong>Plan</strong> and choose the exercises you use.
@@ -1933,7 +1940,7 @@ export default function PPLHub() {
               </>
             )}
 
-            <div style={{ marginTop: 22, borderTop: `2px solid ${RULE}`, paddingTop: 12 }}>
+            <div style={{ marginTop: 22, borderTop: `1px solid ${RULE}`, paddingTop: 12 }}>
               <SectionLabel style={{ marginBottom: 10 }}>Today</SectionLabel>
 
               {tasks.map(([k, label]) => (
@@ -1948,7 +1955,7 @@ export default function PPLHub() {
                     fontSize: 20,
                     background: flags[k] ? WIN : WASH,
                     color: flags[k] ? ON_ACCENT : TEXT,
-                    border: `3px solid ${flags[k] ? WIN : RULE}`,
+                    border: `1px solid ${flags[k] ? WIN : RULE}`,
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
@@ -2074,6 +2081,7 @@ export default function PPLHub() {
                       background: hit ? WIN : WASH,
                       color: hit ? ON_ACCENT : TEXT,
                       padding: "10px 6px",
+                      borderRadius: 10,
                       textAlign: "center",
                     }}
                   >
@@ -2137,6 +2145,7 @@ export default function PPLHub() {
                           style={{
                             flex: 1,
                             height: 22,
+                            borderRadius: 3,
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
@@ -2305,6 +2314,7 @@ export default function PPLHub() {
                           gap: 10,
                           padding: "11px 12px",
                           background: WASH,
+                          borderRadius: 10,
                           marginBottom: 5,
                         }}
                       >
@@ -2369,7 +2379,7 @@ export default function PPLHub() {
                       fontSize: 17,
                       background: on ? PUSH_C : CARD,
                       color: on ? ON_ACCENT : TEXT,
-                      border: `3px solid ${on ? PUSH_C : RULE}`,
+                      border: `1px solid ${on ? PUSH_C : RULE}`,
                     }}
                   >
                     {g.label}
@@ -2381,7 +2391,7 @@ export default function PPLHub() {
               {GOALS[goal].cardio}.
             </div>
 
-            <div style={{ borderTop: `2px solid ${RULE}`, marginTop: 20, paddingTop: 14 }}>
+            <div style={{ borderTop: `1px solid ${RULE}`, marginTop: 20, paddingTop: 14 }}>
               <SectionLabel style={{ marginBottom: 8 }}>Where am I in the rotation?</SectionLabel>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {CYCLE.map((d, i) => {
@@ -2397,7 +2407,7 @@ export default function PPLHub() {
                         fontSize: 15,
                         background: on ? d.color : CARD,
                         color: on ? ON_ACCENT : TEXT,
-                        border: `3px solid ${on ? d.color : RULE}`,
+                        border: `1px solid ${on ? d.color : RULE}`,
                       }}
                     >
                       {n}. {d.label}
@@ -2407,7 +2417,7 @@ export default function PPLHub() {
               </div>
             </div>
 
-            <div style={{ borderTop: `2px solid ${RULE}`, marginTop: 20, paddingTop: 14 }}>
+            <div style={{ borderTop: `1px solid ${RULE}`, marginTop: 20, paddingTop: 14 }}>
               <SectionLabel style={{ marginBottom: 10 }}>
                 My exercises &middot; tap the ones you use
               </SectionLabel>
@@ -2420,7 +2430,7 @@ export default function PPLHub() {
                       textTransform: "uppercase",
                       letterSpacing: "-0.03em",
                       color: TEXT,
-                      borderBottom: `2px solid ${RULE}`,
+                      borderBottom: `1px solid ${RULE}`,
                       paddingBottom: 4,
                       marginBottom: 8,
                     }}
@@ -2452,7 +2462,7 @@ export default function PPLHub() {
                             fontSize: 18,
                             background: on ? RAISED : CARD,
                             color: TEXT,
-                            border: `3px solid ${on ? PUSH_C : RULE}`,
+                            border: `1px solid ${on ? PUSH_C : RULE}`,
                             display: "flex",
                             justifyContent: "space-between",
                             alignItems: "center",
@@ -2472,7 +2482,7 @@ export default function PPLHub() {
                               fontSize: 20,
                               background: CARD,
                               color: MUTE,
-                              border: `3px solid ${RULE}`,
+                              border: `1px solid ${RULE}`,
                             }}
                           >
                             ×
@@ -2526,6 +2536,7 @@ export default function PPLHub() {
               flex: 1,
               padding: "18px 0",
               fontSize: 15,
+              borderRadius: 0,
               background: tab === k ? RAISED : BG,
               color: tab === k ? TEXT : MUTE,
             }}
