@@ -1,0 +1,88 @@
+/* The golf app: deep fairway green, chalk type, bunker gold.
+ *
+ * The other four apps on this domain load their own themes; this file is only
+ * pulled in by golf/main.jsx, so nothing here can reach them.
+ */
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: #08251c;
+  color: #f2f0e8;
+  /* read on a phone, on the floor, mid-stretch */
+  font-size: 17px;
+}
+
+button:focus-visible {
+  outline: 3px solid #e0a83e;
+  outline-offset: 2px;
+}
+
+/* Nothing on these screens should be picked up as text by a long press —
+   every row is a button, and a long press usually means a hold is running. */
+body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* A block opening: its exercises slide down rather than appearing at once, so
+   it is obvious which card grew. */
+@keyframes unfold {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.unfold {
+  animation: unfold 180ms ease-out;
+}
+
+/* The tick lands with a bit of weight behind it. */
+@keyframes pop {
+  0% {
+    transform: scale(0.6);
+  }
+  60% {
+    transform: scale(1.14);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.pop {
+  animation: pop 180ms ease-out;
+}
+
+/* The runner takes the whole screen — it comes up from the bottom, the way a
+   session starts rather than the way a page loads. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.sheet {
+  animation: rise 200ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pop,
+  .unfold,
+  .sheet {
+    animation: none;
+  }
+}

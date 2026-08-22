@@ -2,11 +2,12 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
-/* Four apps, one site, one deploy:
+/* Five apps, one site, one deploy:
  *   APP unset  → the original tracker at BASE_PATH        (…/app/)
  *   APP=ppl    → the push/pull/legs tracker one level down (…/app/ppl/)
  *   APP=dogs   → the dog training tracker                  (…/app/dogs/)
  *   APP=week   → the weekly task list                      (…/app/week/)
+ *   APP=golf   → the golf mobility and pilates plan        (…/app/golf/)
  * Each gets its own manifest, icons and service worker, so they install as
  * separate home-screen apps and cache independently.
  *
@@ -45,6 +46,13 @@ const META = {
     description: "A weekly task list that unticks itself every week.",
     background: "#0B0B0C",
     theme: "#0B0B0C",
+  },
+  golf: {
+    name: "Golf Mobility",
+    short: "Golf",
+    description: "Mobility, pilates and rotation work for a smoother, faster swing.",
+    background: "#08251C",
+    theme: "#08251C",
   },
 };
 
