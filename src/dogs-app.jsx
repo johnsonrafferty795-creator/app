@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
 import { loadJSON, saveJSON } from "./storage";
+import maisiePhoto from "./img/maisie.jpg";
+import georgePhoto from "./img/george.jpg";
 import {
   buildBackup,
   checkBackup,
@@ -38,6 +40,7 @@ const DOGS = [
     name: "Maisie",
     breed: "German Shorthaired Pointer",
     accent: MAISIE,
+    photo: maisiePhoto,
     tasks: [
       { id: "sit", name: "Sit, down, stay", note: "Short session, a few minutes" },
       { id: "recall", name: "Recall", note: "On the long line — the priority for a pointer", key: true },
@@ -55,6 +58,7 @@ const DOGS = [
     name: "George",
     breed: "Border Terrier",
     accent: GEORGE,
+    photo: georgePhoto,
     tasks: [
       { id: "sit", name: "Sit, down, stay", note: "Keep it snappy — terriers bore fast" },
       { id: "recall", name: "Recall", note: "On the long line — prey drive means bolting", key: true },
@@ -166,6 +170,28 @@ function prune(days, now) {
 }
 
 /* ============================ small pieces ============================ */
+
+/* The dog's own face, in a ring of their colour. The ring goes green once
+   their day is finished, which is the whole state of that dog at a glance. */
+function Avatar({ dog, size = 56, done = false }) {
+  return (
+    <img
+      src={dog.photo}
+      alt={dog.name}
+      width={size}
+      height={size}
+      style={{
+        flex: "0 0 auto",
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        objectFit: "cover",
+        border: `3px solid ${done ? GREEN : dog.accent}`,
+        background: WASH,
+      }}
+    />
+  );
+}
 
 function Bar({ done, total, colour, height = 10 }) {
   const pct = total ? Math.round((done / total) * 100) : 0;
@@ -351,24 +377,34 @@ function DayStrip({ days, dog, selected, now, onPick }) {
   );
 }
 
-function Header({ title, sub, colour }) {
+function Header({ title, sub, colour, dog, done }) {
   return (
-    <div style={{ marginBottom: 18 }}>
-      <h1
-        style={{
-          margin: 0,
-          fontFamily: DISPLAY,
-          fontSize: 34,
-          lineHeight: 1.1,
-          letterSpacing: -0.4,
-          color: colour || INK,
-        }}
-      >
-        {title}
-      </h1>
-      {sub ? (
-        <p style={{ margin: "6px 0 0", fontSize: 16, color: MUTE }}>{sub}</p>
-      ) : null}
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        marginBottom: 18,
+      }}
+    >
+      {dog ? <Avatar dog={dog} size={62} done={done} /> : null}
+      <div style={{ minWidth: 0 }}>
+        <h1
+          style={{
+            margin: 0,
+            fontFamily: DISPLAY,
+            fontSize: 34,
+            lineHeight: 1.1,
+            letterSpacing: -0.4,
+            color: colour || INK,
+          }}
+        >
+          {title}
+        </h1>
+        {sub ? (
+          <p style={{ margin: "6px 0 0", fontSize: 16, color: MUTE }}>{sub}</p>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -405,18 +441,25 @@ function TodayView({ days, now, onOpen }) {
               cursor: "pointer",
             }}
           >
-            <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-              <span
-                style={{
-                  fontFamily: DISPLAY,
-                  fontSize: 28,
-                  color: dog.accent,
-                  letterSpacing: -0.3,
-                }}
-              >
-                {dog.name}
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <Avatar dog={dog} size={64} done={full} />
+              <span style={{ minWidth: 0 }}>
+                <span
+                  style={{
+                    display: "block",
+                    fontFamily: DISPLAY,
+                    fontSize: 28,
+                    color: dog.accent,
+                    letterSpacing: -0.3,
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {dog.name}
+                </span>
+                <span style={{ display: "block", fontSize: 14, color: MUTE, marginTop: 2 }}>
+                  {dog.breed}
+                </span>
               </span>
-              <span style={{ fontSize: 14, color: MUTE }}>{dog.breed}</span>
             </div>
 
             <div
@@ -476,6 +519,8 @@ function DogView({ dog, days, now, day, onPickDay, onToggle, onNote }) {
         title={dog.name}
         sub={`${dog.breed}${run ? ` · ${run} full ${run === 1 ? "day" : "days"} in a row` : ""}`}
         colour={dog.accent}
+        dog={dog}
+        done={full}
       />
 
       <DayStrip days={days} dog={dog} selected={day} now={now} onPick={onPickDay} />
@@ -576,18 +621,25 @@ function WeekBlock({ dog, days, now }) {
         background: CARD,
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-        <span
-          style={{
-            fontFamily: DISPLAY,
-            fontSize: 24,
-            color: dog.accent,
-            letterSpacing: -0.3,
-          }}
-        >
-          {dog.name}
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <Avatar dog={dog} size={44} />
+        <span style={{ minWidth: 0 }}>
+          <span
+            style={{
+              display: "block",
+              fontFamily: DISPLAY,
+              fontSize: 24,
+              color: dog.accent,
+              letterSpacing: -0.3,
+              lineHeight: 1.1,
+            }}
+          >
+            {dog.name}
+          </span>
+          <span style={{ display: "block", fontSize: 14, color: MUTE, marginTop: 2 }}>
+            last 7 days
+          </span>
         </span>
-        <span style={{ fontSize: 14, color: MUTE }}>last 7 days</span>
       </div>
 
       <div style={{ display: "flex", gap: 18, margin: "14px 0 16px" }}>
