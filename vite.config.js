@@ -2,12 +2,13 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
-/* Five apps, one site, one deploy:
- *   APP unset  → the original tracker at BASE_PATH        (…/app/)
- *   APP=ppl    → the push/pull/legs tracker one level down (…/app/ppl/)
- *   APP=dogs   → the dog training tracker                  (…/app/dogs/)
- *   APP=week   → the weekly task list                      (…/app/week/)
- *   APP=golf   → the golf mobility and pilates plan        (…/app/golf/)
+/* Six apps, one site, one deploy:
+ *   APP unset    → the original tracker at BASE_PATH        (…/app/)
+ *   APP=ppl      → the push/pull/legs tracker one level down (…/app/ppl/)
+ *   APP=dogs     → the dog training tracker                  (…/app/dogs/)
+ *   APP=week     → the weekly task list                      (…/app/week/)
+ *   APP=golf     → the golf mobility and pilates plan        (…/app/golf/)
+ *   APP=biscuit  → the idle biscuit game                     (…/app/biscuit/)
  * Each gets its own manifest, icons and service worker, so they install as
  * separate home-screen apps and cache independently.
  *
@@ -53,6 +54,13 @@ const META = {
     description: "Mobility, pilates and rotation work for a smoother, faster swing.",
     background: "#08251C",
     theme: "#08251C",
+  },
+  biscuit: {
+    name: "Bertie's Biscuits",
+    short: "Bertie's",
+    description: "Bertie's idle biscuit game: tap one, then buy something that taps it for you.",
+    background: "#1A0F0A",
+    theme: "#1A0F0A",
   },
 };
 

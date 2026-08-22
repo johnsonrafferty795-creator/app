@@ -1,0 +1,175 @@
+/* The biscuit game: dark cocoa, cream type, one gold.
+ *
+ * The other five apps on this domain load their own themes; this file is only
+ * pulled in by biscuit/main.jsx, so nothing here can reach them.
+ */
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: #1a0f0a;
+  color: #f7eedf;
+  font-size: 17px;
+  /* the whole screen is a tap target; nothing on it is text to be selected,
+     and a long press on the biscuit must not offer to copy anything */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  /* a game is tapped fast enough that a double tap would otherwise zoom */
+  touch-action: manipulation;
+}
+
+button:focus-visible {
+  outline: 3px solid #f0b429;
+  outline-offset: 2px;
+}
+
+/* The biscuit takes the press. It is the only thing on screen that moves
+   because you told it to, so it moves properly. */
+@keyframes press {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(0.93);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.press {
+  animation: press 130ms ease-out;
+}
+
+/* Numbers thrown off the biscuit when it is tapped: up, out a little, gone. */
+@keyframes float-up {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -78px) scale(1.18);
+  }
+}
+
+.float {
+  animation: float-up 900ms cubic-bezier(0.2, 0.7, 0.4, 1) forwards;
+}
+
+/* A golden biscuit does not appear, it arrives — and then keeps bobbing, so
+   it is caught out of the corner of an eye while reading the shop. */
+@keyframes land {
+  from {
+    opacity: 0;
+    transform: scale(0.3) rotate(-40deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes bob {
+  0%, 100% {
+    transform: translateY(0) rotate(-4deg);
+  }
+  50% {
+    transform: translateY(-9px) rotate(4deg);
+  }
+}
+
+.golden {
+  animation: land 260ms ease-out, bob 2.4s ease-in-out 260ms infinite;
+}
+
+/* Anything new — a badge earned, an upgrade unlocked, a buff starting. */
+@keyframes pop {
+  0% {
+    transform: scale(0.6);
+  }
+  60% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.pop {
+  animation: pop 200ms ease-out;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.sheet {
+  animation: rise 200ms ease-out;
+}
+
+/* A buff running down. The bar is the clock. */
+@keyframes shimmer {
+  0%, 100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.shimmer {
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .press,
+  .float,
+  .golden,
+  .pop,
+  .sheet,
+  .shimmer {
+    animation: none;
+  }
+  /* a golden biscuit that never animated in would otherwise be invisible */
+  .golden {
+    opacity: 1;
+  }
+  .float {
+    opacity: 0;
+  }
+}
+
+/* The app's own name is on the home-screen icon, so it has no place on screen
+   — but a screen reader still wants somewhere to land. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The shop is a long scroll and the header is sticky over it. */
+.shop-scroll {
+  scrollbar-width: none;
+}
+
+.shop-scroll::-webkit-scrollbar {
+  display: none;
+}
