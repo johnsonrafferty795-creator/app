@@ -56,9 +56,9 @@ const META = {
     theme: "#08251C",
   },
   biscuit: {
-    name: "Biscuit",
-    short: "Biscuit",
-    description: "An idle biscuit game: tap one, then buy something that taps it for you.",
+    name: "Bertie's Biscuits",
+    short: "Bertie's",
+    description: "Bertie's idle biscuit game: tap one, then buy something that taps it for you.",
     background: "#1A0F0A",
     theme: "#1A0F0A",
   },

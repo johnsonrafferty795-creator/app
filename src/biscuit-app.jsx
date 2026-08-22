@@ -1140,6 +1140,10 @@ function TinView({ game, s, notation, prefs, onPrefs, onAscend, onBuyCrumb, onRe
           Wipe the save
         </button>
       </div>
+
+      <p style={{ margin: "4px 2px 8px", fontSize: 13, color: FAINT, textAlign: "center", lineHeight: 1.5 }}>
+        Bertie's biscuits. Built for the one phone they live on.
+      </p>
     </div>
   );
 }
@@ -1777,7 +1781,7 @@ export default function BiscuitApp() {
 
   return (
     <div style={{ minHeight: "100dvh", fontFamily: BODY, color: TYPE }}>
-      <h1 className="sr-only">Biscuit</h1>
+      <h1 className="sr-only">Bertie's Biscuits</h1>
 
       <div
         ref={headRef}

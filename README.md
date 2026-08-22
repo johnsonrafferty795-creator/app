@@ -10,7 +10,7 @@ stored on the phone itself.
 | **Dog Training** | `/dogs/` | Two dogs' daily training checklists |
 | **Weekly** | `/week/` | A task list that unticks itself every week |
 | **Golf Mobility** | `/golf/` | Mobility, pilates and rotation work for the swing |
-| **Biscuit** | `/biscuit/` | An idle biscuit game |
+| **Bertie's Biscuits** | `/biscuit/` | An idle biscuit game |
 
 They build, install and cache separately — six home-screen icons, six stores
 of data, one deploy. `src/workout-app.jsx`, `src/ppl-app.jsx`,
@@ -279,11 +279,14 @@ through is still where you left it when the phone comes back out.
 The exercises are the plan's, and are fixed: this app is a plan to follow, not
 a library to build.
 
-## Biscuit
+## Bertie's Biscuits
 
-The sixth app, at `/biscuit/`. An idle game, and the only one here that is not
-about getting something done: tap a biscuit, then buy something that taps it
-for you, then buy something that buys those.
+The sixth app, at `/biscuit/`. Bertie's, and an idle game — the only one here
+that is not about getting something done: tap a biscuit, then buy something
+that taps it for you, then buy something that buys those.
+
+Its name is on the home-screen icon and in the title bar, which is where the
+other five keep theirs; on screen it appears once, at the foot of the Tin tab.
 
 It is built to the shape of the genre it belongs to — the numbers below are
 tuned to that shape. Everything written on top of them, and everything drawn,
