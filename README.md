@@ -1,6 +1,6 @@
 # Workout
 
-Four offline, installable trackers built from one repo. Vite + React,
+Five offline, installable trackers built from one repo. Vite + React,
 everything stored on the phone itself.
 
 | App | Lives at | What it tracks |
@@ -9,11 +9,12 @@ everything stored on the phone itself.
 | **PPL** | `/ppl/` | Push, Pull, Legs, Rest |
 | **Dog Training** | `/dogs/` | Two dogs' daily training checklists |
 | **Weekly** | `/week/` | A task list that unticks itself every week |
+| **Golf Mobility** | `/golf/` | Mobility, pilates and rotation work for the swing |
 
-They build, install and cache separately — four home-screen icons, four stores
+They build, install and cache separately — five home-screen icons, five stores
 of data, one deploy. `src/workout-app.jsx`, `src/ppl-app.jsx`,
-`src/dogs-app.jsx` and `src/weekly-app.jsx` are deliberately kept as
-independent files: none can break another.
+`src/dogs-app.jsx`, `src/weekly-app.jsx` and `src/golf-app.jsx` are deliberately
+kept as independent files: none can break another.
 
 ## Workout
 
@@ -56,9 +57,10 @@ Everything lives in `localStorage` under three keys, wrapped by `src/storage.js`
 | `tk-tasks`   | the weekly list: name, day, and whether it repeats   |
 | `tk-log`     | which tasks were ticked, filed under the week they belong to |
 | `tk-prefs`   | which day the week starts on                        |
+| `gf-log`     | per day, per block, how many goes at each exercise are finished |
 
-The apps share an origin, so the `wk-` / `ppl-` / `dg-` / `tk-` prefixes are
-what keep them out of each other's data.
+The apps share an origin, so the `wk-` / `ppl-` / `dg-` / `tk-` / `gf-` prefixes
+are what keep them out of each other's data.
 
 No account, no network, no sync — the data belongs to the phone it was entered
 on. Clearing the browser's site data wipes it, and "Add to Home Screen" on iOS
@@ -81,7 +83,7 @@ https://<username>.github.io/<repo>/
 ### Anywhere else
 
 ```sh
-npm run build   # builds all three apps; then drag dist/ onto app.netlify.com/drop
+npm run build   # builds all five apps; then drag dist/ onto app.netlify.com/drop
 ```
 
 Netlify, Vercel, and Cloudflare Pages all serve `dist/` as-is from the domain
@@ -129,23 +131,25 @@ settings screen.
 
 ## Icons
 
-`public/*.png`, `ppl/public/*.png`, `dogs/public/*.png` and `week/public/*.png`
-are generated with the standard library only — a red dumbbell for one app, a
-blue plate for the second, a white paw on green for the third, a pale calendar
-page with an orange tick for the fourth:
+`public/*.png`, `ppl/public/*.png`, `dogs/public/*.png`, `week/public/*.png`
+and `golf/public/*.png` are generated with the standard library only — a red
+dumbbell for one app, a blue plate for the second, a white paw on green for the
+third, a pale calendar page with an orange tick for the fourth, and a chalk
+flagstick and ball on fairway green for the fifth:
 
 ```sh
 python3 tools/make-icons.py
 python3 tools/make-ppl-icons.py
 python3 tools/make-dogs-icons.py
 python3 tools/make-weekly-icons.py
+python3 tools/make-golf-icons.py
 ```
 
 ## Backup
 
 Every app keeps everything on the one phone, so each has an **Export a backup**
-button — Plan tab in the PPL app, Exercises tab in the first, Week tab in the
-dog app, the menu in the weekly one. It writes a dated
+button — Plan tab in the PPL and golf apps, Exercises tab in the first, Week
+tab in the dog app, the menu in the weekly one. It writes a dated
 JSON file through the iOS share sheet, falling back to a download elsewhere.
 **Restore from a file** puts it back, after saying what the file holds and that
 the phone's current data is written over. A backup is stamped with the app it
@@ -185,6 +189,13 @@ not a muted colour for a finished task. For the same reason the tick box keeps
 a pale ring whether it is filled or not: the orange fill alone is 2.2:1 against
 the palest band, and a white tick rules out a lighter fill.
 
+The golf app is the green one: a deep fairway ground, chalk type and bunker
+gold, with a colour per block — grass for the daily flexibility, gold for the
+pilates, sky for the swing work — so a block is known before it is read. Each
+was checked against both the ground and a panel for WCAG AA as type; the
+weakest is sky at 7.4:1 on the ground and 6.0:1 on a panel. See
+`src/golf-theme.css`.
+
 Charts are single-series, drawn as inline SVG: a line for anything over time
 (body weight, and each exercise's weight), bars for sessions a week. Every value
 a chart shows is also written out underneath, so the graph is never the only way
@@ -216,3 +227,40 @@ there to open. A tick records the date it was made and a task the date it was
 added, which is what lets **the week starts on** (Monday or Sunday) be changed
 later without stranding either: the log is filed again from the dates, and a
 task works its week out from when it was written down.
+
+## Golf Mobility
+
+The fifth app, at `/golf/`. A golf mobility and pilates plan — the printed
+sheet it came from, turned into something you work through rather than read.
+
+Three blocks, each its own colour, each with its own place in the week:
+
+| | Block | Dose | When |
+| --- | --- | --- | --- |
+| **A** | Daily Flexibility | 10 min | every day |
+| **B** | Pilates Core & Rotation | 20–25 min | twice a week, on non-lifting days |
+| **C** | Golf Swing Specific | 10–15 min | before the range or a round |
+
+- **Today** — the three blocks, what is owed and what is done. **DUE** shows on
+  the daily block until it is ticked, and on the pilates block until the week
+  has had its two. The swing work is never owed: it is asked for by going to play
+- **A block** opens to its exercises, each tickable on its own, or **Start**
+  walks through it one movement at a time
+- **The runner** — a hold counts itself down (and keeps the screen awake while
+  it does, since a minute is exactly how long a phone waits before locking); a
+  set of reps waits for the tap that says it is done. Each side and each set is
+  its own go, so 3 × 10 each side is six of them, and the bar moves through all
+  six rather than jumping at the end
+- **Week** — Monday to Sunday, three marks a day, plus the daily streak, the
+  pilates count against its target of two, and the week before to compare against
+- **Plan** — the whole plan written out, dose and coaching cue per movement,
+  and the backup buttons
+
+Every dose is stored as numbers — sets, of either seconds or reps, on one side
+or both — and the words are rebuilt from them, so the runner and the written
+plan can never disagree about what a movement asks for. Progress is stored as a
+count of goes finished rather than a flag, so a session put down half way
+through is still where you left it when the phone comes back out.
+
+The exercises are the plan's, and are fixed: this app is a plan to follow, not
+a library to build.
