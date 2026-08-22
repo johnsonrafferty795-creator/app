@@ -1,0 +1,110 @@
+/* The weekly task app: near-black, one stack of days, one orange.
+ *
+ * The other three apps on this domain load their own themes; this file is only
+ * pulled in by week/main.jsx, so nothing here can reach them.
+ */
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: #0b0b0c;
+  color: #e9e7e3;
+  /* read on a phone, one-handed, usually in a hurry */
+  font-size: 17px;
+}
+
+button:focus-visible {
+  outline: 3px solid #e8451c;
+  outline-offset: 2px;
+}
+
+/* A text field is focused every time one is typed into, so a full ring around
+   it would be on screen most of the time. The line under it is enough. */
+.stack input:focus {
+  outline: none;
+  box-shadow: inset 0 -2px 0 0 #e8451c;
+}
+
+.stack input:focus-visible {
+  outline: none;
+}
+
+input {
+  font-family: inherit;
+  color: inherit;
+}
+
+input::placeholder {
+  color: #8b8985;
+}
+
+/* A day opening: the tasks slide down rather than appearing all at once, so
+   it is obvious which band grew. */
+@keyframes unfold {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.unfold {
+  animation: unfold 180ms ease-out;
+}
+
+/* The tick lands with a bit of weight behind it. */
+@keyframes pop {
+  0% {
+    transform: scale(0.6);
+  }
+  60% {
+    transform: scale(1.14);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.pop {
+  animation: pop 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pop,
+  .unfold {
+    animation: none;
+  }
+}
+
+/* Nothing on this screen should ever be picked up as text by a long press —
+   every row is either a button or a drag handle. */
+.stack {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.stack input {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* The app's own name is on the home-screen icon and in the title bar, so it
+   has no place on screen — but a screen reader still wants to land on it. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

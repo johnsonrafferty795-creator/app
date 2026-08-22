@@ -1,6 +1,6 @@
 # Workout
 
-Three offline, installable trackers built from one repo. Vite + React,
+Four offline, installable trackers built from one repo. Vite + React,
 everything stored on the phone itself.
 
 | App | Lives at | What it tracks |
@@ -8,11 +8,12 @@ everything stored on the phone itself.
 | **Workout** | `/` | 2-week rotation, 3 days a week |
 | **PPL** | `/ppl/` | Push, Pull, Legs, Rest |
 | **Dog Training** | `/dogs/` | Two dogs' daily training checklists |
+| **Weekly** | `/week/` | A task list that unticks itself every week |
 
-They build, install and cache separately — three home-screen icons, three stores
-of data, one deploy. `src/workout-app.jsx`, `src/ppl-app.jsx` and
-`src/dogs-app.jsx` are deliberately kept as independent files: none can break
-another.
+They build, install and cache separately — four home-screen icons, four stores
+of data, one deploy. `src/workout-app.jsx`, `src/ppl-app.jsx`,
+`src/dogs-app.jsx` and `src/weekly-app.jsx` are deliberately kept as
+independent files: none can break another.
 
 ## Workout
 
@@ -52,9 +53,12 @@ Everything lives in `localStorage` under three keys, wrapped by `src/storage.js`
 | `ppl-lifts`  | per-exercise set history, last 60 sets each         |
 | `ppl-weight` | one body-weight reading per day, for the graph      |
 | `ppl-reports`| frozen four-week summaries, one per closed block    |
+| `tk-tasks`   | the weekly list: name, day, and whether it repeats   |
+| `tk-log`     | which tasks were ticked, filed under the week they belong to |
+| `tk-prefs`   | which day the week starts on                        |
 
-The apps share an origin, so the `wk-` / `ppl-` / `dg-` prefixes are what keep
-them out of each other's data.
+The apps share an origin, so the `wk-` / `ppl-` / `dg-` / `tk-` prefixes are
+what keep them out of each other's data.
 
 No account, no network, no sync — the data belongs to the phone it was entered
 on. Clearing the browser's site data wipes it, and "Add to Home Screen" on iOS
@@ -125,21 +129,23 @@ settings screen.
 
 ## Icons
 
-`public/*.png`, `ppl/public/*.png` and `dogs/public/*.png` are generated with
-the standard library only — a red dumbbell for one app, a blue plate for the
-second, a white paw on green for the third:
+`public/*.png`, `ppl/public/*.png`, `dogs/public/*.png` and `week/public/*.png`
+are generated with the standard library only — a red dumbbell for one app, a
+blue plate for the second, a white paw on green for the third, a pale calendar
+page with an orange tick for the fourth:
 
 ```sh
 python3 tools/make-icons.py
 python3 tools/make-ppl-icons.py
 python3 tools/make-dogs-icons.py
+python3 tools/make-weekly-icons.py
 ```
 
 ## Backup
 
 Every app keeps everything on the one phone, so each has an **Export a backup**
 button — Plan tab in the PPL app, Exercises tab in the first, Week tab in the
-dog app. It writes a dated
+dog app, the menu in the weekly one. It writes a dated
 JSON file through the iOS share sheet, falling back to a download elsewhere.
 **Restore from a file** puts it back, after saying what the file holds and that
 the phone's current data is written over. A backup is stamped with the app it
@@ -167,7 +173,46 @@ The dog app is the warm one: paper-coloured background, a liver brown for
 Maisie and a teal for George, green for anything done. Type starts at 18px and
 every task is one full-width button, tick box and all — see `src/dogs-theme.css`.
 
+The weekly app is the dark one, and the only one with no tab bar: seven day
+bands stacked down a near-black page, Monday palest and Sunday darkest, with
+one orange for ticks and for anything happening only once — see
+`src/weekly-theme.css`.
+
+Its band ramp stops at `#4A4A4E` rather than the mid grey the design wants. A
+band lighter than that caps out at about 5:1 against white and 4:1 against
+black, so nothing written on it can clear AA — not the day name, and certainly
+not a muted colour for a finished task. For the same reason the tick box keeps
+a pale ring whether it is filled or not: the orange fill alone is 2.2:1 against
+the palest band, and a white tick rules out a lighter fill.
+
 Charts are single-series, drawn as inline SVG: a line for anything over time
 (body weight, and each exercise's weight), bars for sessions a week. Every value
 a chart shows is also written out underneath, so the graph is never the only way
 to read a number.
+
+## Weekly
+
+The fourth app, at `/week/`. A task list where a week is the unit: put things
+on the days you mean to do them, and on the first morning of the next week the
+whole lot goes back to unticked on its own.
+
+One screen, no tabs. The seven days are stacked down it, palest at the top and
+darkening to the bottom, each one collapsed to its name until it is tapped.
+
+- **A day** opens to its date and its list. Tick with the box, type into
+  **Add a task…** at the end, drag by the grip on the right to reorder
+- **A task** is **every week** by default, or **just this week** — tap its name
+  for that, and to delete it. A one-off is marked **once** and is gone when the
+  week turns over
+- **The + button** opens today and puts the cursor in its field, which is the
+  shortest path from picking the phone up to having written the thing down
+- **The menu** holds the week so far, the weeks behind it, which day the week
+  starts on, and the backup buttons
+
+Nothing is ever cleared to make the reset happen. Every tick is filed under the
+week it belongs to, so a new week is simply a new key with nothing in it yet —
+there is no job to run, nothing to go wrong overnight, and last week is still
+there to open. A tick records the date it was made and a task the date it was
+added, which is what lets **the week starts on** (Monday or Sunday) be changed
+later without stranding either: the log is filed again from the dates, and a
+task works its week out from when it was written down.
