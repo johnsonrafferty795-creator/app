@@ -1,6 +1,6 @@
 # Workout
 
-Three offline, installable trackers built from one repo. Vite + React,
+Four offline, installable trackers built from one repo. Vite + React,
 everything stored on the phone itself.
 
 | App | Lives at | What it tracks |
@@ -8,11 +8,12 @@ everything stored on the phone itself.
 | **Workout** | `/` | 2-week rotation, 3 days a week |
 | **PPL** | `/ppl/` | Push, Pull, Legs, Rest |
 | **Dog Training** | `/dogs/` | Two dogs' daily training checklists |
+| **Weekly** | `/week/` | A task list that unticks itself every week |
 
-They build, install and cache separately — three home-screen icons, three stores
-of data, one deploy. `src/workout-app.jsx`, `src/ppl-app.jsx` and
-`src/dogs-app.jsx` are deliberately kept as independent files: none can break
-another.
+They build, install and cache separately — four home-screen icons, four stores
+of data, one deploy. `src/workout-app.jsx`, `src/ppl-app.jsx`,
+`src/dogs-app.jsx` and `src/weekly-app.jsx` are deliberately kept as
+independent files: none can break another.
 
 ## Workout
 
@@ -52,9 +53,12 @@ Everything lives in `localStorage` under three keys, wrapped by `src/storage.js`
 | `ppl-lifts`  | per-exercise set history, last 60 sets each         |
 | `ppl-weight` | one body-weight reading per day, for the graph      |
 | `ppl-reports`| frozen four-week summaries, one per closed block    |
+| `tk-tasks`   | the weekly list: name, day, and whether it repeats   |
+| `tk-log`     | which tasks were ticked, filed under the week they belong to |
+| `tk-prefs`   | which day the week starts on                        |
 
-The apps share an origin, so the `wk-` / `ppl-` / `dg-` prefixes are what keep
-them out of each other's data.
+The apps share an origin, so the `wk-` / `ppl-` / `dg-` / `tk-` prefixes are
+what keep them out of each other's data.
 
 No account, no network, no sync — the data belongs to the phone it was entered
 on. Clearing the browser's site data wipes it, and "Add to Home Screen" on iOS
@@ -125,21 +129,23 @@ settings screen.
 
 ## Icons
 
-`public/*.png`, `ppl/public/*.png` and `dogs/public/*.png` are generated with
-the standard library only — a red dumbbell for one app, a blue plate for the
-second, a white paw on green for the third:
+`public/*.png`, `ppl/public/*.png`, `dogs/public/*.png` and `week/public/*.png`
+are generated with the standard library only — a red dumbbell for one app, a
+blue plate for the second, a white paw on green for the third, an indigo
+calendar page and tick for the fourth:
 
 ```sh
 python3 tools/make-icons.py
 python3 tools/make-ppl-icons.py
 python3 tools/make-dogs-icons.py
+python3 tools/make-weekly-icons.py
 ```
 
 ## Backup
 
 Every app keeps everything on the one phone, so each has an **Export a backup**
 button — Plan tab in the PPL app, Exercises tab in the first, Week tab in the
-dog app. It writes a dated
+dog app, Past tab in the weekly one. It writes a dated
 JSON file through the iOS share sheet, falling back to a download elsewhere.
 **Restore from a file** puts it back, after saying what the file holds and that
 the phone's current data is written over. A backup is stamped with the app it
@@ -167,7 +173,34 @@ The dog app is the warm one: paper-coloured background, a liver brown for
 Maisie and a teal for George, green for anything done. Type starts at 18px and
 every task is one full-width button, tick box and all — see `src/dogs-theme.css`.
 
+The weekly app is the cool one: a lilac-grey page, indigo for the app itself,
+the same green for anything done and a rust orange for today and for anything
+happening only once — see `src/weekly-theme.css`.
+
 Charts are single-series, drawn as inline SVG: a line for anything over time
 (body weight, and each exercise's weight), bars for sessions a week. Every value
 a chart shows is also written out underneath, so the graph is never the only way
 to read a number.
+
+## Weekly
+
+The fourth app, at `/week/`. A task list where a week is the unit: put things
+on the days you mean to do them, and on the first morning of the next week the
+whole lot goes back to unticked on its own.
+
+- **Today** — what is set for today, plus anything wanted this week but not on
+  any particular day, and a line saying when the unticking happens
+- **Week** — the seven days, each with its own tasks, so a day missed on
+  Tuesday can still be ticked on Friday. `‹ Earlier` steps back through
+  finished weeks
+- **Tasks** — the list itself. Each task has a day (or **any day**) and is
+  either **every week** or **just this week**; the second kind is marked
+  **once** and is gone when the week turns over
+- **Past** — the last eight weeks, each as a percentage, and the backup buttons
+
+Nothing is ever cleared to make the reset happen. Every tick is filed under the
+week it belongs to, so a new week is simply a new key with nothing in it yet —
+there is no job to run, nothing to go wrong overnight, and last week is still
+there to look at. A tick records the date it was made, which is what lets the
+**week starts on** setting (Monday or Sunday, on the Tasks tab) be changed
+later without stranding anything.
