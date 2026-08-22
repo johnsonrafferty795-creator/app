@@ -43,8 +43,8 @@ const META = {
     name: "Weekly",
     short: "Weekly",
     description: "A weekly task list that unticks itself every week.",
-    background: "#F5F3FB",
-    theme: "#4B3FA6",
+    background: "#0B0B0C",
+    theme: "#0B0B0C",
   },
 };
 

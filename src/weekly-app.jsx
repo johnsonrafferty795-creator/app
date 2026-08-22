@@ -11,17 +11,31 @@ import {
 
 /* ============================ constants ============================ */
 
-const INK = "#1E1B2E";
-const MUTE = "#5F5A73";
-const RULE = "#E3DFF0";
-const CARD = "#FFFFFF";
-const WASH = "#EFEBFA";
-const INDIGO = "#4B3FA6";
-const INDIGO_WASH = "#E8E4F8";
-const DONE = "#1F6E52";
-const DONE_WASH = "#E4F0EA";
-const NOW = "#B04A12";
-const DISPLAY = "'Arial Black','Helvetica Neue',Impact,sans-serif";
+const GROUND = "#0B0B0C";
+const TYPE = "#E9E7E3";
+const DAY_TYPE = "#EDEDEB";
+const MUTE = "#A0A09E";
+const FAINT = "#8B8985";
+const FLAME = "#E8451C";
+/* the accent used as type needs its own lighter step: at 17px on the sheet
+   the fill colour itself only just clears AA, and on a pale band it does not */
+const FLAME_TYPE = "#FF7A52";
+const SPENT = "#FFB6A0";
+const ONCE = "#FFA88E";
+const SHEET = "#161618";
+const EDGE = "rgba(255,255,255,0.10)";
+
+/* Monday is the top of the stack and the lightest; the week darkens as it
+   goes, so where you are in it is legible before a single word is read.
+ *
+ * The light end stops at #4A4A4E rather than the mid grey it wants to be. A
+ * band that light caps out around 5:1 against white and 4:1 against black, so
+ * nothing written on it can clear AA — not the day name, and certainly not a
+ * muted colour for a finished task. This is the lightest the top of the stack
+ * can be while everything on it stays readable. */
+const SHADES = ["#4A4A4E", "#414145", "#38383C", "#2F2F33", "#26262A", "#1C1C20", "#121216"];
+
+const DISPLAY = "'Avenir Next Condensed','Helvetica Neue',Impact,'Arial Black',sans-serif";
 const BODY = "'Helvetica Neue',Arial,Helvetica,sans-serif";
 
 const KEY_TASKS = "tk-tasks";
@@ -36,6 +50,10 @@ const KEEP_WEEKS = 26;
 
 const DEFAULT_PREFS = { weekStart: 1 };
 
+/* every task row is this tall, which is what lets a drag be read as a
+   whole number of places moved rather than a pixel offset */
+const ROW = 46;
+
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -43,7 +61,6 @@ const MONTHS = [
 const WEEKDAYS = [
   "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 ];
-const SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 /* ============================ dates ============================ */
 
@@ -66,16 +83,23 @@ const asDate = (day) => {
 
 const weekdayOf = (day) => asDate(day).getDay();
 
-const dayNumber = (day) => Number(day.slice(8));
-
 const shortDate = (day) => {
   const d = asDate(day);
   return `${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}`;
 };
 
-const longDate = (day) => {
+/* "August 22, 2026", the way the date sits under a day name. */
+const fullDate = (day) => {
   const d = asDate(day);
-  return `${WEEKDAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+};
+
+const clockTime = (d) => {
+  const h = d.getHours();
+  const m = String(d.getMinutes()).padStart(2, "0");
+  const suffix = h < 12 ? "am" : "pm";
+  const twelve = h % 12 === 0 ? 12 : h % 12;
+  return `${twelve}:${m}${suffix}`;
 };
 
 /* ============================ weeks ============================ */
@@ -92,22 +116,20 @@ const weekDays = (start) => Array.from({ length: 7 }, (_, i) => shiftDay(start, 
 
 const weekEnd = (start) => shiftDay(start, 6);
 
-/* "This week", "Last week", or the dates it runs between. */
+const weekRange = (start) => `${shortDate(start)} – ${shortDate(weekEnd(start))}`;
+
 function weekLabel(start, thisWeek) {
   if (start === thisWeek) return "This week";
   if (start === shiftDay(thisWeek, -7)) return "Last week";
-  if (start === shiftDay(thisWeek, 7)) return "Next week";
-  return `${shortDate(start)} – ${shortDate(weekEnd(start))}`;
+  return weekRange(start);
 }
 
-const weekRange = (start) => `${shortDate(start)} – ${shortDate(weekEnd(start))}`;
-
 /* When the ticks go back to nothing, said the way you would say it out loud. */
-function resetLine(thisWeek, now, startsOn) {
+function resetLine(now, startsOn) {
   const left = 7 - ((weekdayOf(now) - startsOn + 7) % 7);
   const dayName = WEEKDAYS[startsOn];
-  if (left === 1) return `Everything unticks tomorrow morning, for ${dayName}.`;
-  return `Everything unticks in ${left} days, on ${dayName} morning.`;
+  if (left === 1) return `Unticks tomorrow morning, for ${dayName}`;
+  return `Unticks in ${left} days, on ${dayName} morning`;
 }
 
 /* ============================ tasks and the log ============================ */
@@ -132,12 +154,7 @@ const tasksForWeek = (tasks, week, startsOn) =>
     return joined <= week && (t.repeat || joined === week);
   });
 
-/* Everything set for one day of the week; `day` of null means the loose ones,
-   the things that want doing this week but not on any particular day. */
-const tasksOnDay = (list, weekday) =>
-  list.filter((t) => t.day === weekday);
-
-const loose = (list) => list.filter((t) => t.day === null);
+const tasksOnDay = (list, weekday) => list.filter((t) => t.day === weekday);
 
 const ticksFor = (log, week) => log[week] || {};
 
@@ -163,7 +180,6 @@ function refile(log, startsOn) {
   Object.keys(log).forEach((week) => {
     Object.keys(log[week]).forEach((taskId) => {
       const stamp = log[week][taskId];
-      /* a tick from before the stamps were dates only knows its old week */
       const day = typeof stamp === "string" && stamp.length === 10 ? stamp : week;
       const key = weekStartOf(day, startsOn);
       out[key] = { ...(out[key] || {}), [taskId]: day };
@@ -187,16 +203,28 @@ function pruneTasks(tasks, thisWeek) {
   return tasks.filter((t) => t.repeat || t.since >= cutoff);
 }
 
+/* Move one task within its own day, leaving every other day where it was.
+   The full list is rebuilt by walking it once and dealing the day's tasks
+   back out in their new order, so nothing else shifts. */
+function reorder(tasks, weekday, fromIndex, toIndex) {
+  const mine = tasks.filter((t) => t.day === weekday);
+  if (fromIndex === toIndex || !mine[fromIndex]) return tasks;
+  const moved = mine.slice();
+  moved.splice(toIndex, 0, moved.splice(fromIndex, 1)[0]);
+  let n = 0;
+  return tasks.map((t) => (t.day === weekday ? moved[n++] : t));
+}
+
 /* ============================ small pieces ============================ */
 
-function Tick({ size = 22, colour = "#FFF" }) {
+function Tick({ size = 17 }) {
   return (
     <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
       <path
         d="M4 12.5 L9.5 18 L20 6.5"
         fill="none"
-        stroke={colour}
-        strokeWidth="3.4"
+        stroke="#FFF"
+        strokeWidth="3.6"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -204,763 +232,318 @@ function Tick({ size = 22, colour = "#FFF" }) {
   );
 }
 
-function Bar({ done, total, colour, height = 10 }) {
-  const pct = total ? Math.round((done / total) * 100) : 0;
+/* Two columns of three dots: the grip, in the corner of every row. */
+function Grip() {
   return (
-    <div style={{ height, borderRadius: height, background: WASH, overflow: "hidden" }}>
-      <div
-        style={{
-          width: `${pct}%`,
-          height: "100%",
-          borderRadius: height,
-          background: colour,
-          transition: "width 220ms ease-out",
-        }}
-      />
-    </div>
+    <svg viewBox="0 0 12 18" width={12} height={18} aria-hidden="true">
+      {[3, 9].map((x) =>
+        [3, 9, 15].map((y) => (
+          <circle key={`${x}-${y}`} cx={x} cy={y} r={1.4} fill="currentColor" />
+        ))
+      )}
+    </svg>
   );
 }
 
-function Header({ title, sub }) {
+/* One task. The box ticks it; the words open what to do with it. */
+function TaskRow({ task, done, open, offset, dragging, onToggle, onOpen, onGrab }) {
   return (
-    <div style={{ marginBottom: 18 }}>
-      <h1
-        style={{
-          margin: 0,
-          fontFamily: DISPLAY,
-          fontSize: 34,
-          lineHeight: 1.1,
-          letterSpacing: -0.4,
-          color: INK,
-        }}
-      >
-        {title}
-      </h1>
-      {sub ? (
-        <p style={{ margin: "6px 0 0", fontSize: 16, color: MUTE }}>{sub}</p>
-      ) : null}
-    </div>
-  );
-}
-
-/* One task. The whole row is the button, tick box and all. */
-function TaskRow({ task, done, onToggle }) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-pressed={done}
+    <div
       style={{
+        height: ROW,
         display: "flex",
         alignItems: "center",
-        gap: 14,
-        width: "100%",
-        textAlign: "left",
-        padding: "14px 16px",
-        marginBottom: 8,
-        font: "inherit",
-        color: INK,
-        border: `1px solid ${done ? DONE : RULE}`,
-        borderRadius: 16,
-        background: done ? DONE_WASH : CARD,
-        cursor: "pointer",
+        gap: 12,
+        transform: offset ? `translateY(${offset}px)` : undefined,
+        transition: dragging ? "none" : "transform 140ms ease-out",
+        position: "relative",
+        zIndex: dragging ? 2 : 1,
+        opacity: dragging ? 0.92 : 1,
       }}
     >
-      <span
-        key={done ? "on" : "off"}
-        className={done ? "pop" : undefined}
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-pressed={done}
+        aria-label={task.name}
         style={{
           flex: "0 0 auto",
-          width: 36,
-          height: 36,
-          borderRadius: 12,
-          border: done ? "none" : `2px solid ${RULE}`,
-          background: done ? DONE : "#FFF",
+          width: 27,
+          height: 27,
+          padding: 0,
+          borderRadius: 7,
+          /* the ring stays in both states: the orange fill on its own is only
+             2.2:1 against the palest band, so the box would lose its edge up
+             there, and a white tick rules out a lighter fill */
+          border: `2px solid rgba(255,255,255,${done ? 0.65 : 0.55})`,
+          background: done ? FLAME : "transparent",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
+          cursor: "pointer",
         }}
       >
-        {done ? <Tick /> : null}
-      </span>
-
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: "block", fontSize: 18, fontWeight: 700, lineHeight: 1.25 }}>
-          {task.name}
+        <span key={done ? "on" : "off"} className={done ? "pop" : undefined}>
+          {done ? <Tick /> : null}
         </span>
-      </span>
+      </button>
 
-      {!task.repeat ? (
-        <span
-          style={{
-            flex: "0 0 auto",
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: 0.6,
-            textTransform: "uppercase",
-            color: NOW,
-            border: `1px solid ${NOW}`,
-            borderRadius: 999,
-            padding: "3px 8px",
-          }}
-        >
-          Once
-        </span>
-      ) : null}
-    </button>
-  );
-}
-
-/* A day's worth of the week view. */
-function DayBlock({ title, sub, list, log, week, isToday, onToggle }) {
-  const done = countDone(log, week, list);
-  const total = list.length;
-  const full = total > 0 && done === total;
-
-  return (
-    <div
-      style={{
-        padding: 16,
-        marginBottom: 14,
-        border: isToday ? `2px solid ${NOW}` : `1px solid ${RULE}`,
-        borderRadius: 20,
-        background: CARD,
-      }}
-    >
-      <div
+      {/* the box and the words are two controls on one row, so they need
+          names that tell them apart out loud as well as by sight */}
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-expanded={open}
+        aria-label={`Options for ${task.name}`}
         style={{
-          display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          gap: 10,
-          marginBottom: total ? 12 : 0,
+          flex: 1,
+          minWidth: 0,
+          textAlign: "left",
+          padding: 0,
+          font: "inherit",
+          fontSize: 17,
+          border: "none",
+          background: "transparent",
+          color: done ? SPENT : TYPE,
+          textDecoration: done ? "line-through" : "none",
+          textDecorationColor: done ? SPENT : undefined,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          cursor: "pointer",
         }}
       >
-        <span style={{ minWidth: 0 }}>
-          <span
-            style={{
-              fontFamily: DISPLAY,
-              fontSize: 22,
-              letterSpacing: -0.3,
-              color: isToday ? NOW : INK,
-            }}
-          >
-            {title}
-          </span>
-          {sub ? (
-            <span style={{ fontSize: 14, color: MUTE, marginLeft: 8 }}>{sub}</span>
-          ) : null}
-        </span>
-        <span
-          style={{
-            flex: "0 0 auto",
-            fontSize: 14,
-            fontWeight: 700,
-            color: full ? DONE : MUTE,
-          }}
-        >
-          {total ? `${done}/${total}` : "—"}
-        </span>
-      </div>
-
-      {list.map((task) => (
-        <TaskRow
-          key={task.id}
-          task={task}
-          done={isDone(log, week, task.id)}
-          onToggle={() => onToggle(task.id)}
-        />
-      ))}
-    </div>
-  );
-}
-
-/* ============================ views ============================ */
-
-function TodayView({ tasks, log, thisWeek, now, prefs, onToggle, onGoTasks }) {
-  const list = tasksForWeek(tasks, thisWeek, prefs.weekStart);
-  const mine = tasksOnDay(list, weekdayOf(now));
-  const spare = loose(list);
-  const all = [...mine, ...spare];
-  const done = countDone(log, thisWeek, all);
-  const total = all.length;
-  const full = total > 0 && done === total;
-
-  return (
-    <div>
-      <Header title="Today" sub={longDate(now)} />
-
-      {total ? (
-        <>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              margin: "0 2px 8px",
-            }}
-          >
-            <span style={{ fontSize: 17, fontWeight: 700 }}>
-              {full ? "All done" : `${done} of ${total} done`}
-            </span>
-            {full ? <Tick size={18} colour={DONE} /> : null}
-          </div>
-          <div style={{ marginBottom: 20 }}>
-            <Bar done={done} total={total} colour={full ? DONE : INDIGO} />
-          </div>
-        </>
-      ) : null}
-
-      {mine.map((task) => (
-        <TaskRow
-          key={task.id}
-          task={task}
-          done={isDone(log, thisWeek, task.id)}
-          onToggle={() => onToggle(task.id, thisWeek)}
-        />
-      ))}
-
-      {spare.length ? (
-        <>
-          <p
-            style={{
-              margin: mine.length ? "20px 2px 8px" : "0 2px 8px",
-              fontSize: 14,
-              fontWeight: 700,
-              letterSpacing: 0.6,
-              textTransform: "uppercase",
-              color: MUTE,
-            }}
-          >
-            Any day this week
-          </p>
-          {spare.map((task) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              done={isDone(log, thisWeek, task.id)}
-              onToggle={() => onToggle(task.id, thisWeek)}
-            />
-          ))}
-        </>
-      ) : null}
-
-      {total === 0 ? (
-        <div
-          style={{
-            padding: 20,
-            border: `1px solid ${RULE}`,
-            borderRadius: 20,
-            background: CARD,
-          }}
-        >
-          <p style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 700 }}>
-            Nothing set for today.
-          </p>
-          <p style={{ margin: "0 0 16px", fontSize: 15, color: MUTE, lineHeight: 1.5 }}>
-            Put things on the days you want to do them. They come back every week,
-            unticked, so the week always starts clean.
-          </p>
-          <button
-            type="button"
-            onClick={onGoTasks}
-            style={{
-              font: "inherit",
-              padding: "12px 18px",
-              fontSize: 16,
-              fontWeight: 700,
-              border: "none",
-              borderRadius: 14,
-              background: INDIGO,
-              color: "#FFF",
-              cursor: "pointer",
-            }}
-          >
-            Add a task
-          </button>
-        </div>
-      ) : (
-        <p style={{ margin: "18px 2px 0", fontSize: 15, color: MUTE, lineHeight: 1.5 }}>
-          {full
-            ? `Today is finished. ${resetLine(thisWeek, now, prefs.weekStart)}`
-            : resetLine(thisWeek, now, prefs.weekStart)}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function WeekView({ tasks, log, week, thisWeek, now, prefs, onToggle, onPickWeek }) {
-  const list = tasksForWeek(tasks, week, prefs.weekStart);
-  const done = countDone(log, week, list);
-  const total = list.length;
-  const full = total > 0 && done === total;
-  const days = weekDays(week);
-  const spare = loose(list);
-
-  const step = {
-    font: "inherit",
-    padding: "10px 14px",
-    fontSize: 16,
-    fontWeight: 700,
-    border: `1px solid ${RULE}`,
-    borderRadius: 12,
-    background: CARD,
-    color: INK,
-    cursor: "pointer",
-  };
-
-  return (
-    <div>
-      <Header title={weekLabel(week, thisWeek)} sub={weekRange(week)} />
-
-      <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
-        <button type="button" style={step} onClick={() => onPickWeek(shiftDay(week, -7))}>
-          ‹ Earlier
-        </button>
-        {week !== thisWeek ? (
-          <button type="button" style={{ ...step, flex: 1 }} onClick={() => onPickWeek(thisWeek)}>
-            This week
-          </button>
+        {task.name}
+        {!task.repeat ? (
+          <span style={{ color: ONCE, fontSize: 13, marginLeft: 8 }}>once</span>
         ) : null}
-        <button
-          type="button"
-          style={{ ...step, opacity: week >= thisWeek ? 0.4 : 1 }}
-          disabled={week >= thisWeek}
-          onClick={() => onPickWeek(shiftDay(week, 7))}
-        >
-          Later ›
-        </button>
-      </div>
+      </button>
 
-      {total ? (
-        <>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              margin: "0 2px 8px",
-            }}
-          >
-            <span style={{ fontSize: 17, fontWeight: 700 }}>
-              {full ? "The whole week done" : `${done} of ${total} done`}
-            </span>
-            <span style={{ fontSize: 15, color: MUTE }}>
-              {Math.round((done / total) * 100)}%
-            </span>
-          </div>
-          <div style={{ marginBottom: 20 }}>
-            <Bar done={done} total={total} colour={full ? DONE : INDIGO} />
-          </div>
-        </>
-      ) : (
-        <p
-          style={{
-            margin: "0 2px 20px",
-            fontSize: 15,
-            color: MUTE,
-            lineHeight: 1.5,
-          }}
-        >
-          Nothing on the list for this week.
-        </p>
-      )}
-
-      {spare.length ? (
-        <DayBlock
-          title="Any day"
-          sub="this week"
-          list={spare}
-          log={log}
-          week={week}
-          isToday={false}
-          onToggle={(id) => onToggle(id, week)}
-        />
-      ) : null}
-
-      {days.map((day) => {
-        const wd = weekdayOf(day);
-        const dayList = tasksOnDay(list, wd);
-        if (!dayList.length) return null;
-        return (
-          <DayBlock
-            key={day}
-            title={WEEKDAYS[wd]}
-            sub={String(dayNumber(day))}
-            list={dayList}
-            log={log}
-            week={week}
-            isToday={day === now}
-            onToggle={(id) => onToggle(id, week)}
-          />
-        );
-      })}
-
-      {week === thisWeek && total ? (
-        <p style={{ margin: "4px 2px 0", fontSize: 15, color: MUTE, lineHeight: 1.5 }}>
-          {resetLine(thisWeek, now, prefs.weekStart)} Weekly tasks come back
-          unticked; anything marked <strong>once</strong> goes away.
-        </p>
-      ) : null}
+      <span
+        onPointerDown={onGrab}
+        role="button"
+        tabIndex={-1}
+        aria-label={`Reorder ${task.name}`}
+        style={{
+          flex: "0 0 auto",
+          padding: "6px 2px 6px 10px",
+          color: dragging ? TYPE : "rgba(255,255,255,0.50)",
+          cursor: "grab",
+          touchAction: "none",
+        }}
+      >
+        <Grip />
+      </span>
     </div>
   );
 }
 
-/* The day picker, shared by the add form and the row editor. */
-function DayPicker({ value, onPick, startsOn }) {
-  const order = Array.from({ length: 7 }, (_, i) => (startsOn + i) % 7);
+/* What a task can be, once you have tapped its name. */
+function TaskOptions({ task, onRepeat, onDelete }) {
   const chip = (on) => ({
     font: "inherit",
-    padding: "9px 11px",
-    fontSize: 15,
+    padding: "7px 12px",
+    fontSize: 14,
     fontWeight: 700,
-    border: on ? `2px solid ${INDIGO}` : `1px solid ${RULE}`,
-    borderRadius: 12,
-    background: on ? INDIGO_WASH : CARD,
-    color: on ? INDIGO : INK,
+    border: `1px solid ${on ? FLAME : "rgba(255,255,255,0.22)"}`,
+    borderRadius: 999,
+    background: on ? "rgba(232,69,28,0.16)" : "transparent",
+    color: on ? FLAME_TYPE : TYPE,
     cursor: "pointer",
   });
 
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-      <button
-        type="button"
-        aria-pressed={value === null}
-        style={chip(value === null)}
-        onClick={() => onPick(null)}
-      >
-        Any
-      </button>
-      {order.map((wd) => (
-        <button
-          key={wd}
-          type="button"
-          style={chip(value === wd)}
-          onClick={() => onPick(wd)}
-          aria-label={WEEKDAYS[wd]}
-          aria-pressed={value === wd}
-        >
-          {SHORT[wd]}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function RepeatPicker({ repeat, onPick }) {
-  const opt = (on) => ({
-    font: "inherit",
-    flex: 1,
-    padding: "11px 10px",
-    fontSize: 15,
-    fontWeight: 700,
-    border: on ? `2px solid ${INDIGO}` : `1px solid ${RULE}`,
-    borderRadius: 12,
-    background: on ? INDIGO_WASH : CARD,
-    color: on ? INDIGO : INK,
-    cursor: "pointer",
-  });
-
-  return (
-    <div style={{ display: "flex", gap: 8 }}>
-      <button
-        type="button"
-        aria-pressed={repeat}
-        style={opt(repeat)}
-        onClick={() => onPick(true)}
-      >
+    <div
+      className="unfold"
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 8,
+        padding: "2px 0 12px 39px",
+      }}
+    >
+      <button type="button" style={chip(task.repeat)} onClick={() => onRepeat(true)}>
         Every week
       </button>
+      <button type="button" style={chip(!task.repeat)} onClick={() => onRepeat(false)}>
+        Just this week
+      </button>
       <button
         type="button"
-        aria-pressed={!repeat}
-        style={opt(!repeat)}
-        onClick={() => onPick(false)}
+        onClick={onDelete}
+        style={{
+          font: "inherit",
+          padding: "7px 12px",
+          fontSize: 14,
+          fontWeight: 700,
+          border: "1px solid rgba(255,255,255,0.22)",
+          borderRadius: 999,
+          background: "transparent",
+          color: MUTE,
+          cursor: "pointer",
+        }}
       >
-        Just this week
+        Delete
       </button>
     </div>
   );
 }
 
-function AddTask({ startsOn, defaultDay, onAdd }) {
-  const [name, setName] = useState("");
-  const [day, setDay] = useState(defaultDay);
-  const [repeat, setRepeat] = useState(true);
+/* One band of the stack. Collapsed it is a name; open it is the day. */
+function DayBand({
+  day, weekday, shade, list, log, week, isToday, open, drag,
+  openTask, addRef, clock,
+  onOpen, onToggle, onOpenTask, onRepeat, onDelete, onAdd, onGrab,
+}) {
+  const done = countDone(log, week, list);
+  const total = list.length;
+  const all = total > 0 && done === total;
 
-  const submit = (e) => {
-    e.preventDefault();
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    onAdd({ name: trimmed, day, repeat });
-    setName("");
+  /* where each row sits while one of them is being dragged */
+  const offsetOf = (index) => {
+    if (!drag || drag.weekday !== weekday) return 0;
+    if (index === drag.from) return drag.dy;
+    if (drag.from < drag.to && index > drag.from && index <= drag.to) return -ROW;
+    if (drag.to < drag.from && index >= drag.to && index < drag.from) return ROW;
+    return 0;
   };
 
   return (
-    <form
-      onSubmit={submit}
+    <section
       style={{
-        padding: 18,
-        marginBottom: 18,
-        border: `1px solid ${RULE}`,
-        borderRadius: 20,
-        background: CARD,
+        background: shade,
+        borderTop: `1px solid rgba(0,0,0,0.28)`,
+        padding: "22px 20px",
+        minHeight: open ? undefined : 96,
       }}
     >
-      <label style={{ display: "block", marginBottom: 12 }}>
-        <span style={{ display: "block", fontSize: 15, color: MUTE, marginBottom: 8 }}>
-          What needs doing?
-        </span>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Wash the car"
-          style={{
-            width: "100%",
-            padding: "12px 14px",
-            fontSize: 17,
-            color: INK,
-            border: `1px solid ${RULE}`,
-            borderRadius: 12,
-            background: "#FFF",
-          }}
-        />
-      </label>
-
-      <span style={{ display: "block", fontSize: 15, color: MUTE, marginBottom: 8 }}>
-        Which day?
-      </span>
-      <div style={{ marginBottom: 14 }}>
-        <DayPicker value={day} onPick={setDay} startsOn={startsOn} />
-      </div>
-
-      <span style={{ display: "block", fontSize: 15, color: MUTE, marginBottom: 8 }}>
-        How often?
-      </span>
-      <div style={{ marginBottom: 16 }}>
-        <RepeatPicker repeat={repeat} onPick={setRepeat} />
-      </div>
-
-      <button
-        type="submit"
-        disabled={!name.trim()}
-        style={{
-          font: "inherit",
-          width: "100%",
-          padding: "14px 18px",
-          fontSize: 17,
-          fontWeight: 700,
-          border: "none",
-          borderRadius: 14,
-          background: name.trim() ? INDIGO : WASH,
-          color: name.trim() ? "#FFF" : MUTE,
-          cursor: name.trim() ? "pointer" : "default",
-        }}
-      >
-        Add it
-      </button>
-    </form>
-  );
-}
-
-/* A task on the Tasks tab: tap it to change the day, change how often, or
-   take it off the list. */
-function EditRow({ task, open, startsOn, onOpen, onChange, onDelete }) {
-  return (
-    <div
-      style={{
-        marginBottom: 10,
-        border: open ? `2px solid ${INDIGO}` : `1px solid ${RULE}`,
-        borderRadius: 16,
-        background: CARD,
-        overflow: "hidden",
-      }}
-    >
+      {/* the day name is the heading for everything under it, so the stack
+          can be moved through a day at a time rather than row by row */}
+      <h2 style={{ margin: 0, font: "inherit" }}>
       <button
         type="button"
         onClick={onOpen}
         aria-expanded={open}
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
+          display: "block",
           width: "100%",
           textAlign: "left",
-          padding: "14px 16px",
-          font: "inherit",
-          color: INK,
+          padding: 0,
           border: "none",
           background: "transparent",
+          font: "inherit",
+          color: DAY_TYPE,
           cursor: "pointer",
         }}
       >
-        <span style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: "block", fontSize: 18, fontWeight: 700, lineHeight: 1.25 }}>
-            {task.name}
-          </span>
-          <span style={{ display: "block", marginTop: 3, fontSize: 14, color: MUTE }}>
-            {task.day === null ? "Any day" : WEEKDAYS[task.day]} ·{" "}
-            {task.repeat ? "every week" : "this week only"}
-          </span>
-        </span>
-        <span style={{ flex: "0 0 auto", fontSize: 15, color: INDIGO, fontWeight: 700 }}>
-          {open ? "Done" : "Change"}
-        </span>
-      </button>
-
-      {open ? (
-        <div style={{ padding: "0 16px 16px" }}>
-          <span style={{ display: "block", fontSize: 15, color: MUTE, marginBottom: 8 }}>
-            Which day?
-          </span>
-          <div style={{ marginBottom: 14 }}>
-            <DayPicker
-              value={task.day}
-              startsOn={startsOn}
-              onPick={(day) => onChange({ day })}
-            />
-          </div>
-
-          <span style={{ display: "block", fontSize: 15, color: MUTE, marginBottom: 8 }}>
-            How often?
-          </span>
-          <div style={{ marginBottom: 14 }}>
-            <RepeatPicker repeat={task.repeat} onPick={(repeat) => onChange({ repeat })} />
-          </div>
-
-          <button
-            type="button"
-            onClick={onDelete}
-            style={{
-              font: "inherit",
-              padding: "11px 16px",
-              fontSize: 15,
-              fontWeight: 700,
-              border: `1px solid ${NOW}`,
-              borderRadius: 12,
-              background: "#FFF",
-              color: NOW,
-              cursor: "pointer",
-            }}
-          >
-            Take it off the list
-          </button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function TasksView({ tasks, thisWeek, now, prefs, onAdd, onChange, onDelete, onPrefs }) {
-  const [open, setOpen] = useState(null);
-  const list = tasksForWeek(tasks, thisWeek, prefs.weekStart);
-
-  const order = Array.from({ length: 7 }, (_, i) => (prefs.weekStart + i) % 7);
-  const spare = loose(list);
-
-  const setting = (on) => ({
-    font: "inherit",
-    flex: 1,
-    padding: "11px 10px",
-    fontSize: 15,
-    fontWeight: 700,
-    border: on ? `2px solid ${INDIGO}` : `1px solid ${RULE}`,
-    borderRadius: 12,
-    background: on ? INDIGO_WASH : CARD,
-    color: on ? INDIGO : INK,
-    cursor: "pointer",
-  });
-
-  const group = (title, rows) =>
-    rows.length ? (
-      <div key={title} style={{ marginBottom: 18 }}>
-        <p
+        <span
           style={{
-            margin: "0 2px 8px",
-            fontSize: 14,
-            fontWeight: 700,
-            letterSpacing: 0.6,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            fontFamily: DISPLAY,
+            fontWeight: 800,
+            fontSize: 34,
+            letterSpacing: 0.4,
+            lineHeight: 1.05,
             textTransform: "uppercase",
-            color: MUTE,
           }}
         >
-          {title}
-        </p>
-        {rows.map((task) => (
-          <EditRow
-            key={task.id}
-            task={task}
-            open={open === task.id}
-            startsOn={prefs.weekStart}
-            onOpen={() => setOpen(open === task.id ? null : task.id)}
-            onChange={(change) => onChange(task.id, change)}
-            onDelete={() => {
-              if (window.confirm(`Take "${task.name}" off the list?`)) {
-                setOpen(null);
-                onDelete(task.id);
-              }
+          {WEEKDAYS[weekday]}
+          {total ? (
+            <span
+              style={{
+                fontFamily: BODY,
+                fontSize: 13,
+                fontWeight: 700,
+                letterSpacing: 0,
+                color: all ? ONCE : "rgba(255,255,255,0.75)",
+              }}
+            >
+              {done}/{total}
+            </span>
+          ) : null}
+        </span>
+
+        {isToday || open ? (
+          <span
+            style={{
+              display: "block",
+              marginTop: 8,
+              fontSize: 14,
+              color: "rgba(255,255,255,0.72)",
             }}
-          />
-        ))}
-      </div>
-    ) : null;
-
-  return (
-    <div>
-      <Header
-        title="Tasks"
-        sub={`${list.length} on the list${list.length ? "" : " yet"}`}
-      />
-
-      <AddTask startsOn={prefs.weekStart} defaultDay={weekdayOf(now)} onAdd={onAdd} />
-
-      {group("Any day this week", spare)}
-      {order.map((wd) => group(WEEKDAYS[wd], tasksOnDay(list, wd)))}
-
-      <div
-        style={{
-          padding: 18,
-          marginBottom: 16,
-          border: `1px solid ${RULE}`,
-          borderRadius: 20,
-          background: CARD,
-        }}
-      >
-        <div style={{ fontSize: 17, fontWeight: 700 }}>The week starts on</div>
-        <p style={{ margin: "6px 0 12px", fontSize: 15, color: MUTE, lineHeight: 1.5 }}>
-          This is the morning everything goes back to unticked.
-        </p>
-        <div style={{ display: "flex", gap: 8 }}>
-          {/* the day chips on this same screen are called Monday and Sunday
-              too, so these two say what they are for out loud */}
-          <button
-            type="button"
-            aria-label="Start the week on Monday"
-            aria-pressed={prefs.weekStart === 1}
-            style={setting(prefs.weekStart === 1)}
-            onClick={() => onPrefs({ weekStart: 1 })}
           >
-            Monday
-          </button>
-          <button
-            type="button"
-            aria-label="Start the week on Sunday"
-            aria-pressed={prefs.weekStart === 0}
-            style={setting(prefs.weekStart === 0)}
-            onClick={() => onPrefs({ weekStart: 0 })}
+            {fullDate(day)}
+            {isToday ? ` — ${clockTime(clock)}` : ""}
+          </span>
+        ) : null}
+      </button>
+      </h2>
+
+      {open ? (
+        <div className="unfold" style={{ marginTop: 16 }}>
+          <div style={{ position: "relative" }}>
+            {list.map((task, index) => (
+              <div key={task.id}>
+                <TaskRow
+                  task={task}
+                  done={isDone(log, week, task.id)}
+                  open={openTask === task.id}
+                  offset={offsetOf(index)}
+                  dragging={!!drag && drag.weekday === weekday && drag.from === index}
+                  onToggle={() => onToggle(task.id)}
+                  onOpen={() => onOpenTask(task.id)}
+                  onGrab={(e) => onGrab(e, weekday, index)}
+                />
+                {openTask === task.id ? (
+                  <TaskOptions
+                    task={task}
+                    onRepeat={(repeat) => onRepeat(task.id, repeat)}
+                    onDelete={() => onDelete(task.id)}
+                  />
+                ) : null}
+              </div>
+            ))}
+          </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const field = e.currentTarget.elements.name;
+              const trimmed = field.value.trim();
+              if (!trimmed) return;
+              onAdd(trimmed);
+              field.value = "";
+              field.focus();
+            }}
           >
-            Sunday
-          </button>
+            <input
+              ref={addRef}
+              name="name"
+              type="text"
+              placeholder="Add a task…"
+              enterKeyHint="done"
+              autoComplete="off"
+              style={{
+                width: "100%",
+                height: ROW,
+                padding: "0 0 0 39px",
+                fontSize: 17,
+                border: "none",
+                background: "transparent",
+                color: TYPE,
+              }}
+            />
+          </form>
         </div>
-      </div>
-    </div>
+      ) : null}
+    </section>
   );
 }
 
-/* Everything is on this phone and nowhere else, so a file that can go in
-   iCloud or an email to yourself is the only safety net there is. */
+/* ============================ the menu ============================ */
+
 function Backup({ tasks, onRestored }) {
   const [message, setMessage] = useState(null);
   const fileInput = useRef(null);
@@ -968,15 +551,9 @@ function Backup({ tasks, onRestored }) {
   const exportNow = async () => {
     const payload = buildBackup(APP, KEYS);
     const result = await saveBackup(payload, `weekly-${today()}.json`);
-    if (result === "shared" || result === "downloaded") {
-      setMessage("Backup saved.");
-    } else if (result === "cancelled") {
-      setMessage(null);
-    } else {
-      setMessage(
-        "That did not work here — try from the browser rather than the home-screen app."
-      );
-    }
+    if (result === "shared" || result === "downloaded") setMessage("Backup saved.");
+    else if (result === "cancelled") setMessage(null);
+    else setMessage("That did not work here — try from the browser rather than the home-screen app.");
   };
 
   const importNow = async (file) => {
@@ -988,13 +565,7 @@ function Backup({ tasks, onRestored }) {
         setMessage(problem);
         return;
       }
-      if (
-        !window.confirm(
-          "Replace everything on this phone with the backup? What is here now will be lost."
-        )
-      ) {
-        return;
-      }
+      if (!window.confirm("Replace everything on this phone with the backup? What is here now will be lost.")) return;
       restoreBackup(payload, KEYS);
       onRestored();
       setMessage("Backup restored.");
@@ -1005,29 +576,21 @@ function Backup({ tasks, onRestored }) {
 
   const button = {
     font: "inherit",
-    padding: "12px 16px",
-    fontSize: 16,
+    padding: "11px 15px",
+    fontSize: 15,
     fontWeight: 700,
-    border: `1px solid ${RULE}`,
+    border: `1px solid ${EDGE}`,
     borderRadius: 12,
-    background: "#FFF",
-    color: INK,
+    background: "transparent",
+    color: TYPE,
     cursor: "pointer",
   };
 
   return (
-    <div
-      style={{
-        padding: 18,
-        border: `1px solid ${RULE}`,
-        borderRadius: 20,
-        background: CARD,
-      }}
-    >
-      <div style={{ fontSize: 17, fontWeight: 700 }}>Keep a copy</div>
-      <p style={{ margin: "6px 0 14px", fontSize: 15, color: MUTE, lineHeight: 1.5 }}>
+    <div>
+      <p style={{ margin: "0 0 12px", fontSize: 14, color: MUTE, lineHeight: 1.5 }}>
         Everything is saved on this phone only. {tasks.length}{" "}
-        {tasks.length === 1 ? "task" : "tasks"} set up so far.
+        {tasks.length === 1 ? "task" : "tasks"} on the list.
       </p>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button type="button" style={button} onClick={exportNow}>
@@ -1048,128 +611,208 @@ function Backup({ tasks, onRestored }) {
         />
       </div>
       {message ? (
-        <p style={{ margin: "12px 0 0", fontSize: 15, color: INK }}>{message}</p>
+        <p style={{ margin: "12px 0 0", fontSize: 14, color: TYPE }}>{message}</p>
       ) : null}
     </div>
   );
 }
 
-/* The weeks behind this one, so a run of good ones is visible and a bad one
-   is over rather than sitting on today's list. */
-function PastView({ tasks, log, thisWeek, startsOn, onOpenWeek, onRestored }) {
-  const weeks = useMemo(() => {
+function Menu({ tasks, log, thisWeek, week, prefs, now, onClose, onPickWeek, onPrefs, onRestored }) {
+  const past = useMemo(() => {
     const out = [];
     for (let i = 1; i <= 8; i += 1) {
       const start = shiftDay(thisWeek, -7 * i);
-      const list = tasksForWeek(tasks, start, startsOn);
+      const list = tasksForWeek(tasks, start, prefs.weekStart);
       if (!list.length && !Object.keys(ticksFor(log, start)).length) continue;
-      out.push({ start, list, done: countDone(log, start, list) });
+      out.push({ start, total: list.length, done: countDone(log, start, list) });
     }
     return out;
-  }, [tasks, log, thisWeek, startsOn]);
+  }, [tasks, log, thisWeek, prefs.weekStart]);
 
-  const best = weeks.reduce(
-    (top, w) => Math.max(top, w.list.length ? w.done / w.list.length : 0),
-    0
-  );
+  const here = tasksForWeek(tasks, week, prefs.weekStart);
+  const doneHere = countDone(log, week, here);
+
+  const heading = {
+    margin: "0 0 10px",
+    fontSize: 12,
+    fontWeight: 700,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    color: FAINT,
+  };
+  const block = { padding: "20px 20px", borderTop: `1px solid ${EDGE}` };
+  const opt = (on) => ({
+    font: "inherit",
+    flex: 1,
+    padding: "11px 10px",
+    fontSize: 15,
+    fontWeight: 700,
+    border: `1px solid ${on ? FLAME : EDGE}`,
+    borderRadius: 12,
+    background: on ? "rgba(232,69,28,0.16)" : "transparent",
+    color: on ? FLAME_TYPE : TYPE,
+    cursor: "pointer",
+  });
 
   return (
-    <div>
-      <Header title="Past weeks" sub="Finished and left behind" />
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 20,
+        background: "rgba(0,0,0,0.55)",
+        display: "flex",
+        alignItems: "flex-end",
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="safe-nav"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "100%",
+          maxHeight: "86dvh",
+          overflowY: "auto",
+          background: SHEET,
+          borderRadius: "22px 22px 0 0",
+          border: `1px solid ${EDGE}`,
+          borderBottom: "none",
+        }}
+      >
+        <div style={{ padding: "18px 20px 20px" }}>
+          <div
+            style={{
+              width: 40,
+              height: 4,
+              borderRadius: 4,
+              background: "rgba(255,255,255,0.22)",
+              margin: "0 auto 18px",
+            }}
+          />
+          <div
+            style={{
+              fontFamily: DISPLAY,
+              fontWeight: 800,
+              fontSize: 30,
+              letterSpacing: 0.4,
+              textTransform: "uppercase",
+              color: DAY_TYPE,
+            }}
+          >
+            {weekLabel(week, thisWeek)}
+          </div>
+          <p style={{ margin: "8px 0 0", fontSize: 14, color: MUTE }}>
+            {weekRange(week)} · {doneHere} of {here.length} done
+          </p>
+          <p style={{ margin: "4px 0 0", fontSize: 14, color: FLAME_TYPE }}>
+            {week === thisWeek
+              ? resetLine(now, prefs.weekStart)
+              : "A finished week — still here to look at"}
+          </p>
+        </div>
 
-      {weeks.length === 0 ? (
-        <p
-          style={{
-            margin: "0 2px 20px",
-            fontSize: 15,
-            color: MUTE,
-            lineHeight: 1.5,
-          }}
-        >
-          Nothing behind you yet. Weeks land here as they finish, and what is on
-          this week's list is never affected by them.
-        </p>
-      ) : (
-        weeks.map(({ start, list, done }) => {
-          const total = list.length;
-          const pct = total ? Math.round((done / total) * 100) : 0;
-          const full = total > 0 && done === total;
-          return (
+        {week !== thisWeek ? (
+          <div style={block}>
             <button
-              key={start}
               type="button"
-              onClick={() => onOpenWeek(start)}
-              style={{
-                display: "block",
-                width: "100%",
-                textAlign: "left",
-                padding: 18,
-                marginBottom: 12,
-                font: "inherit",
-                color: INK,
-                border: `1px solid ${full ? DONE : RULE}`,
-                borderRadius: 20,
-                background: CARD,
-                cursor: "pointer",
+              onClick={() => {
+                onPickWeek(thisWeek);
+                onClose();
               }}
+              style={{ ...opt(true), width: "100%" }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "baseline",
-                  justifyContent: "space-between",
-                  gap: 10,
-                }}
-              >
-                <span style={{ fontSize: 17, fontWeight: 700 }}>
-                  {weekLabel(start, thisWeek)}
-                </span>
-                <span style={{ fontSize: 15, color: MUTE }}>{weekRange(start)}</span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "baseline",
-                  gap: 8,
-                  margin: "10px 0 8px",
-                }}
-              >
-                <span style={{ fontFamily: DISPLAY, fontSize: 28, lineHeight: 1 }}>
-                  {pct}%
-                </span>
-                <span style={{ fontSize: 15, color: MUTE }}>
-                  {done} of {total} done
-                </span>
-              </div>
-              <Bar done={done} total={total} colour={full ? DONE : INDIGO} />
-              <div style={{ marginTop: 12, fontSize: 15, color: INDIGO, fontWeight: 700 }}>
-                Look at it ›
-              </div>
+              Back to this week
             </button>
-          );
-        })
-      )}
+          </div>
+        ) : null}
 
-      {weeks.length ? (
-        <p style={{ margin: "0 2px 18px", fontSize: 15, color: MUTE, lineHeight: 1.5 }}>
-          Best of the last {weeks.length} {weeks.length === 1 ? "week" : "weeks"}:{" "}
-          {Math.round(best * 100)}%.
-        </p>
-      ) : null}
+        <div style={block}>
+          <p style={heading}>Weeks behind you</p>
+          {past.length === 0 ? (
+            <p style={{ margin: 0, fontSize: 14, color: MUTE, lineHeight: 1.5 }}>
+              Nothing yet. Weeks land here as they finish, and what is on this
+              week's list is never touched by them.
+            </p>
+          ) : (
+            past.map(({ start, total, done }) => (
+              <button
+                key={start}
+                type="button"
+                onClick={() => {
+                  onPickWeek(start);
+                  onClose();
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  width: "100%",
+                  padding: "12px 0",
+                  font: "inherit",
+                  border: "none",
+                  borderBottom: `1px solid ${EDGE}`,
+                  background: "transparent",
+                  color: TYPE,
+                  cursor: "pointer",
+                }}
+              >
+                <span style={{ fontSize: 15 }}>{weekLabel(start, thisWeek)}</span>
+                <span style={{ fontSize: 14, color: total && done === total ? FLAME_TYPE : MUTE }}>
+                  {done}/{total}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
 
-      <Backup tasks={tasks} onRestored={onRestored} />
+        <div style={block}>
+          <p style={heading}>The week starts on</p>
+          <p style={{ margin: "0 0 12px", fontSize: 14, color: MUTE, lineHeight: 1.5 }}>
+            The morning everything goes back to unticked.
+          </p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              aria-label="Start the week on Monday"
+              aria-pressed={prefs.weekStart === 1}
+              style={opt(prefs.weekStart === 1)}
+              onClick={() => onPrefs({ weekStart: 1 })}
+            >
+              Monday
+            </button>
+            <button
+              type="button"
+              aria-label="Start the week on Sunday"
+              aria-pressed={prefs.weekStart === 0}
+              style={opt(prefs.weekStart === 0)}
+              onClick={() => onPrefs({ weekStart: 0 })}
+            >
+              Sunday
+            </button>
+          </div>
+        </div>
+
+        <div style={block}>
+          <p style={heading}>Keep a copy</p>
+          <Backup tasks={tasks} onRestored={onRestored} />
+        </div>
+
+        <div style={{ ...block, paddingBottom: 28 }}>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ ...opt(false), width: "100%" }}
+          >
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
 /* ============================ shell ============================ */
-
-const TABS = [
-  { id: "today", label: "Today" },
-  { id: "week", label: "Week" },
-  { id: "tasks", label: "Tasks" },
-  { id: "past", label: "Past" },
-];
 
 export default function WeeklyApp() {
   const [tasks, setTasks] = useState(() => loadJSON(KEY_TASKS, []));
@@ -1178,23 +821,30 @@ export default function WeeklyApp() {
     ...DEFAULT_PREFS,
     ...loadJSON(KEY_PREFS, {}),
   }));
-  const [view, setView] = useState("today");
   const [now, setNow] = useState(today);
+  const [clock, setClock] = useState(() => new Date());
 
   const thisWeek = weekStartOf(now, prefs.weekStart);
   const [week, setWeek] = useState(thisWeek);
+  const [open, setOpen] = useState(() => [weekdayOf(today())]);
+  const [openTask, setOpenTask] = useState(null);
+  const [menu, setMenu] = useState(false);
+  const [drag, setDrag] = useState(null);
+
+  const addRefs = useRef({});
 
   /* A home-screen app is rarely closed, so it can be sitting open when
      midnight passes — and the whole point of this one is that the new week
      arrives on its own. Whenever it comes back to the front, check the date. */
   useEffect(() => {
     const check = () => {
+      setClock(new Date());
       const fresh = today();
-      setNow((was) => was === fresh ? was : fresh);
+      setNow((was) => (was === fresh ? was : fresh));
     };
     document.addEventListener("visibilitychange", check);
     window.addEventListener("focus", check);
-    const timer = setInterval(check, 60000);
+    const timer = setInterval(check, 30000);
     return () => {
       document.removeEventListener("visibilitychange", check);
       window.removeEventListener("focus", check);
@@ -1208,9 +858,10 @@ export default function WeeklyApp() {
   useEffect(() => {
     if (wasWeek.current !== thisWeek) {
       setWeek((shown) => (shown === wasWeek.current ? thisWeek : shown));
+      setOpen([weekdayOf(now)]);
       wasWeek.current = thisWeek;
     }
-  }, [thisWeek]);
+  }, [thisWeek, now]);
 
   const commitTasks = (next) => {
     const tidied = pruneTasks(next, thisWeek);
@@ -1224,13 +875,19 @@ export default function WeeklyApp() {
     saveJSON(KEY_LOG, tidied);
   };
 
-  const addTask = ({ name, day, repeat }) =>
-    commitTasks([...tasks, { id: newId(), name, day, repeat, since: now }]);
+  const addTask = (weekday, name) =>
+    commitTasks([
+      ...tasks,
+      { id: newId(), name, day: weekday, repeat: true, since: now },
+    ]);
 
-  const changeTask = (id, change) =>
-    commitTasks(tasks.map((t) => (t.id === id ? { ...t, ...change } : t)));
+  const setRepeat = (id, repeat) =>
+    commitTasks(tasks.map((t) => (t.id === id ? { ...t, repeat } : t)));
 
   const deleteTask = (id) => {
+    const task = tasks.find((t) => t.id === id);
+    if (task && !window.confirm(`Delete "${task.name}"?`)) return;
+    setOpenTask(null);
     commitTasks(tasks.filter((t) => t.id !== id));
     /* its ticks would otherwise sit in storage for months, unreadable */
     const next = {};
@@ -1242,12 +899,12 @@ export default function WeeklyApp() {
   };
 
   /* Stamp the tick with a day inside the week it is filed under: today when
-     that is this week, the week's own Monday when an earlier one is being
+     that is this week, the week's own first day when an earlier one is being
      caught up. That keeps every tick self-describing, which is what lets the
      week-start setting be changed without losing any of them. */
-  const toggle = (taskId, onWeek) => {
-    const inside = now >= onWeek && now <= weekEnd(onWeek);
-    commitLog(toggleTick(log, onWeek, taskId, inside ? now : onWeek));
+  const toggle = (taskId) => {
+    const inside = now >= week && now <= weekEnd(week);
+    commitLog(toggleTick(log, week, taskId, inside ? now : week));
   };
 
   const changePrefs = (change) => {
@@ -1271,114 +928,213 @@ export default function WeeklyApp() {
     setPrefs({ ...DEFAULT_PREFS, ...loadJSON(KEY_PREFS, {}) });
   };
 
-  const openWeek = (start) => {
-    setWeek(start);
-    setView("week");
+  const toggleDay = (weekday) => {
+    setOpenTask(null);
+    setOpen((was) =>
+      was.includes(weekday) ? was.filter((d) => d !== weekday) : [...was, weekday]
+    );
+  };
+
+  /* The + opens today and puts the cursor in its field: the shortest path
+     from picking the phone up to having written the thing down. */
+  const addToToday = () => {
+    const weekday = weekdayOf(now);
+    setOpen((was) => (was.includes(weekday) ? was : [...was, weekday]));
+    setTimeout(() => {
+      const field = addRefs.current[weekday];
+      if (field) {
+        field.scrollIntoView({ block: "center", behavior: "smooth" });
+        field.focus();
+      }
+    }, 80);
+  };
+
+  /* Dragging a row: the grip captures the pointer, the row follows it, and
+     what is committed is a whole number of places moved. */
+  const grab = (e, weekday, from) => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const startY = e.clientY;
+    const count = tasksOnDay(tasksForWeek(tasks, week, prefs.weekStart), weekday).length;
+    setOpenTask(null);
+    setDrag({ weekday, from, to: from, dy: 0, startY, count, pointerId: e.pointerId });
+  };
+
+  useEffect(() => {
+    if (!drag) return undefined;
+    const move = (e) => {
+      if (e.pointerId !== drag.pointerId) return;
+      const dy = e.clientY - drag.startY;
+      const places = Math.round(dy / ROW);
+      const to = Math.min(Math.max(drag.from + places, 0), drag.count - 1);
+      setDrag((was) => (was ? { ...was, dy, to } : was));
+    };
+    const drop = (e) => {
+      if (e.pointerId !== drag.pointerId) return;
+      if (drag.to !== drag.from) {
+        commitTasks(reorder(tasks, drag.weekday, drag.from, drag.to));
+      }
+      setDrag(null);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", drop);
+    window.addEventListener("pointercancel", drop);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", drop);
+      window.removeEventListener("pointercancel", drop);
+    };
+  }, [drag, tasks]);
+
+  const list = tasksForWeek(tasks, week, prefs.weekStart);
+  const days = weekDays(week);
+  const order = Array.from({ length: 7 }, (_, i) => (prefs.weekStart + i) % 7);
+  const doneAll = countDone(log, week, list);
+
+  const round = {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    border: `1px solid ${EDGE}`,
+    background: "rgba(28,28,30,0.86)",
+    backdropFilter: "blur(10px)",
+    color: TYPE,
+    font: "inherit",
+    fontSize: 24,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
   };
 
   return (
-    <div style={{ minHeight: "100dvh", fontFamily: BODY, color: INK }}>
-      <div
-        className="pad-nav"
-        /* longhands, not the padding shorthand: an inline shorthand would set
-           padding-bottom to 0 and beat .pad-nav, putting the last card under
-           the fixed bar */
-        style={{
-          maxWidth: 560,
-          margin: "0 auto",
-          paddingTop: 22,
-          paddingLeft: 16,
-          paddingRight: 16,
-        }}
-      >
-        {view === "today" ? (
-          <TodayView
-            tasks={tasks}
-            log={log}
-            thisWeek={thisWeek}
-            now={now}
-            prefs={prefs}
-            onToggle={toggle}
-            onGoTasks={() => setView("tasks")}
-          />
-        ) : view === "week" ? (
-          <WeekView
-            tasks={tasks}
-            log={log}
-            week={week}
-            thisWeek={thisWeek}
-            now={now}
-            prefs={prefs}
-            onToggle={toggle}
-            onPickWeek={setWeek}
-          />
-        ) : view === "tasks" ? (
-          <TasksView
-            tasks={tasks}
-            thisWeek={thisWeek}
-            now={now}
-            prefs={prefs}
-            onAdd={addTask}
-            onChange={changeTask}
-            onDelete={deleteTask}
-            onPrefs={changePrefs}
-          />
-        ) : (
-          <PastView
-            tasks={tasks}
-            log={log}
-            thisWeek={thisWeek}
-            startsOn={prefs.weekStart}
-            onOpenWeek={openWeek}
-            onRestored={reload}
-          />
-        )}
+    <div className="stack" style={{ minHeight: "100dvh", fontFamily: BODY, background: GROUND }}>
+      <h1 className="sr-only">Weekly</h1>
+      {week !== thisWeek ? (
+        <button
+          type="button"
+          onClick={() => setWeek(thisWeek)}
+          style={{
+            display: "block",
+            width: "100%",
+            padding: "12px 20px",
+            font: "inherit",
+            fontSize: 14,
+            fontWeight: 700,
+            textAlign: "left",
+            border: "none",
+            background: FLAME,
+            color: "#FFF",
+            cursor: "pointer",
+          }}
+        >
+          {weekLabel(week, thisWeek)}, {weekRange(week)} — back to this week ›
+        </button>
+      ) : null}
+
+      <div className="pad-nav">
+        {order.map((weekday, i) => {
+          const day = days.find((d) => weekdayOf(d) === weekday);
+          return (
+            <DayBand
+              key={weekday}
+              day={day}
+              weekday={weekday}
+              shade={SHADES[i]}
+              list={tasksOnDay(list, weekday)}
+              log={log}
+              week={week}
+              clock={clock}
+              isToday={day === now}
+              open={open.includes(weekday)}
+              drag={drag}
+              openTask={openTask}
+              addRef={(el) => {
+                addRefs.current[weekday] = el;
+              }}
+              onOpen={() => toggleDay(weekday)}
+              onToggle={toggle}
+              onOpenTask={(id) => setOpenTask((was) => (was === id ? null : id))}
+              onRepeat={setRepeat}
+              onDelete={deleteTask}
+              onAdd={(name) => addTask(weekday, name)}
+              onGrab={grab}
+            />
+          );
+        })}
+
+        <p
+          style={{
+            margin: 0,
+            padding: "26px 20px 8px",
+            fontSize: 14,
+            color: FAINT,
+            lineHeight: 1.5,
+          }}
+        >
+          {list.length === 0
+            ? "Nothing on the list yet. Open a day and write the first thing down."
+            : `${doneAll} of ${list.length} done. ${
+                week === thisWeek
+                  ? `${resetLine(now, prefs.weekStart)} — everything comes back, unticked, except what is marked once.`
+                  : "This week is finished."
+              }`}
+        </p>
       </div>
 
-      <nav
-        className="safe-nav"
+      <div
+        className="safe-bar"
         style={{
           position: "fixed",
           left: 0,
           right: 0,
           bottom: 0,
+          zIndex: 10,
           display: "flex",
-          gap: 6,
-          padding: "8px 10px",
-          background: "rgba(245,243,251,0.96)",
-          backdropFilter: "blur(8px)",
-          borderTop: `1px solid ${RULE}`,
+          justifyContent: "space-between",
+          padding: "12px 18px",
+          pointerEvents: "none",
         }}
       >
-        {TABS.map((tab) => {
-          const on = view === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => {
-                if (tab.id === "week") setWeek(thisWeek);
-                setView(tab.id);
-              }}
-              aria-current={on ? "page" : undefined}
-              style={{
-                font: "inherit",
-                flex: 1,
-                padding: "12px 4px",
-                border: "none",
-                borderRadius: 14,
-                background: on ? INDIGO : "transparent",
-                color: on ? "#FFF" : MUTE,
-                fontSize: 15,
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </nav>
+        <button
+          type="button"
+          aria-label="Menu"
+          onClick={() => setMenu(true)}
+          style={{ ...round, pointerEvents: "auto" }}
+        >
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            {[7, 12, 17].map((y) => (
+              <rect key={y} x="4" y={y - 1} width="16" height="2" rx="1" fill="currentColor" />
+            ))}
+          </svg>
+        </button>
+        <button
+          type="button"
+          aria-label="Add a task to today"
+          onClick={addToToday}
+          style={{ ...round, pointerEvents: "auto" }}
+        >
+          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+            <rect x="11" y="4" width="2" height="16" rx="1" fill="currentColor" />
+            <rect x="4" y="11" width="16" height="2" rx="1" fill="currentColor" />
+          </svg>
+        </button>
+      </div>
+
+      {menu ? (
+        <Menu
+          tasks={tasks}
+          log={log}
+          thisWeek={thisWeek}
+          week={week}
+          prefs={prefs}
+          now={now}
+          onClose={() => setMenu(false)}
+          onPickWeek={setWeek}
+          onPrefs={changePrefs}
+          onRestored={reload}
+        />
+      ) : null}
     </div>
   );
 }

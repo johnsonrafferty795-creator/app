@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Generate the icons for the weekly task app (no image libraries required).
 
-A white calendar page with an indigo tick through it: not the red dumbbell,
-the blue plate or the green paw the other three apps use, so the four are never
-confused on a home screen.
+A pale calendar page on near-black, with the header strip and the tick in the
+same orange the app ticks things off in: not the red dumbbell, the blue plate
+or the green paw the other three apps use, so the four are never confused on a
+home screen.
 
 Run with: python3 tools/make-weekly-icons.py
 """
@@ -11,8 +12,9 @@ import struct
 import zlib
 from pathlib import Path
 
-INDIGO = (75, 63, 166)   # #4B3FA6
-WHITE = (255, 255, 255)
+GROUND = (11, 11, 12)     # #0B0B0C
+PAPER = (233, 231, 227)   # #E9E7E3
+FLAME = (232, 69, 28)     # #E8451C
 
 OUT = Path(__file__).resolve().parent.parent / "week" / "public"
 
@@ -49,23 +51,23 @@ def capsule(dx, dy, a, b, half):
 
 
 def colour_at(dx, dy, scale):
-    """Indigo ground, white page, indigo header strip and tick on top of it."""
+    """Near-black ground, pale page, orange header strip and tick on top."""
     page = tuple(v * scale for v in PAGE)
     if not rounded(dx, dy, page):
-        return INDIGO
+        return GROUND
     if rounded(dx, dy, tuple(v * scale for v in BAND)):
-        return INDIGO
+        return FLAME
     half = TICK_HALF * scale
     pts = [(x * scale, y * scale) for x, y in TICK]
     for a, b in zip(pts, pts[1:]):
         if capsule(dx, dy, a, b, half):
-            return INDIGO
-    return WHITE
+            return FLAME
+    return PAPER
 
 
 def render(size, scale):
     """scale < 1 keeps the mark inside the safe zone for maskable icons."""
-    px = [[INDIGO] * size for _ in range(size)]
+    px = [[GROUND] * size for _ in range(size)]
     mid = (size - 1) / 2
     # 4x supersampling, so the corners and the tick read clean at 192px.
     ss = 4
