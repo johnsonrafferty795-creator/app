@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { Diagram } from "./golf-figures.jsx";
 import { loadJSON, saveJSON } from "./storage";
 import {
   buildBackup,
@@ -658,20 +659,29 @@ function Runner({ block, log, day, onProgress, onClose }) {
       </header>
 
       <div style={runnerBody}>
-        <h2 style={{ margin: 0, fontSize: 30, fontWeight: 800, lineHeight: 1.1, letterSpacing: -0.4 }}>
+        <h2 style={{ margin: 0, fontSize: 25, fontWeight: 800, lineHeight: 1.12, letterSpacing: -0.4 }}>
           {ex.name}
+          {ex.detail ? (
+            <span style={{ display: "block", fontSize: 15, fontWeight: 400, color: MUTE, marginTop: 3 }}>
+              {ex.detail}
+            </span>
+          ) : null}
         </h2>
-        {ex.detail ? (
-          <p style={{ margin: "6px 0 0", fontSize: 16, color: MUTE }}>{ex.detail}</p>
-        ) : null}
-        <p style={{ margin: "14px 0 0", fontSize: 16, fontWeight: 700, color: block.colour }}>
+        <p style={{ margin: "8px 0 0", fontSize: 15.5, fontWeight: 700, color: block.colour }}>
           {dose(ex)}
         </p>
-        <p style={{ margin: "16px 0 0", fontSize: 15.5, color: MUTE, lineHeight: 1.55, maxWidth: 460 }}>
+
+        {/* what the position actually looks like — the words are no use to
+            anyone who has not seen the movement before */}
+        <div style={{ margin: "12px 0 0", flexShrink: 0 }}>
+          <Diagram id={ex.id} colour={block.colour} height={126} />
+        </div>
+
+        <p style={{ margin: "12px 0 0", fontSize: 14.5, color: MUTE, lineHeight: 1.5, maxWidth: 460 }}>
           {ex.cue}
         </p>
 
-        <div style={{ margin: "26px 0 0", minHeight: 24 }}>
+        <div style={{ margin: "16px 0 0", minHeight: 24 }}>
           {effortLabel(ex, effort) ? (
             <span
               style={{
@@ -689,10 +699,19 @@ function Runner({ block, log, day, onProgress, onClose }) {
           ) : null}
         </div>
 
-        <div style={{ position: "relative", width: 190, height: 190, margin: "18px auto 0" }}>
+        <div
+          style={{
+            position: "relative",
+            width: 168,
+            height: 168,
+            margin: "12px auto 0",
+            flexShrink: 0,
+          }}
+        >
           <Ring
             share={ex.kind === "hold" ? (ex.secs ? remaining / ex.secs : 0) : 1}
             colour={block.colour}
+            size={168}
           />
           <button
             type="button"
@@ -722,7 +741,7 @@ function Runner({ block, log, day, onProgress, onClose }) {
           >
             <span
               style={{
-                fontSize: ex.kind === "hold" ? 46 : 54,
+                fontSize: ex.kind === "hold" ? 40 : 48,
                 fontWeight: 800,
                 letterSpacing: -1,
                 fontVariantNumeric: "tabular-nums",
@@ -737,7 +756,7 @@ function Runner({ block, log, day, onProgress, onClose }) {
         </div>
 
         {efforts > 1 ? (
-          <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 20 }}>
+          <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 14 }}>
             {Array.from({ length: efforts }, (_, i) => (
               <span
                 key={i}
@@ -1364,6 +1383,9 @@ function PlanView({ log, onRestored }) {
                 </span>
               </div>
               <p style={{ margin: "5px 0 0", fontSize: 14, color: MUTE, lineHeight: 1.5 }}>{ex.cue}</p>
+              <div style={{ marginTop: 8 }}>
+                <Diagram id={ex.id} colour={block.colour} height={118} />
+              </div>
             </div>
           ))}
         </div>

@@ -260,7 +260,8 @@ Three blocks, each its own colour, each with its own place in the week:
   has had its two. The swing work is never owed: it is asked for by going to play
 - **A block** opens to its exercises, each tickable on its own, or **Start**
   walks through it one movement at a time
-- **The runner** — a hold counts itself down (and keeps the screen awake while
+- **The runner** — one movement a screen: what it looks like, what it asks
+  for, and the cue. A hold counts itself down (and keeps the screen awake while
   it does, since a minute is exactly how long a phone waits before locking); a
   set of reps waits for the tap that says it is done. Each side and each set is
   its own go, so 3 × 10 each side is six of them, and the bar moves through all
@@ -278,6 +279,29 @@ through is still where you left it when the phone comes back out.
 
 The exercises are the plan's, and are fixed: this app is a plan to follow, not
 a library to build.
+
+### The figures
+
+Every movement carries a drawing of the position, in the runner and again on
+Plan. A plan that assumes you already know what a 90/90 hip switch looks like
+is no use to anyone who does not, and a written cue does not fix that.
+
+They live in `src/golf-figures.jsx` as coordinates rather than pictures — a
+pose is a spine drawn as a curve and limbs drawn as polylines with a bend at
+the elbow or knee, with the limbs on the far side of the body drawn faint,
+which is the whole of the depth in them. All sixteen together cost about 3 kB
+gzipped, so they precache with everything else and work with no signal; a
+folder of illustrations would be both a download and something to keep.
+
+The body is drawn in chalk and the floor, wall, bench, band and ball in a
+fainter chalk, so the only thing in the app's own colour is the arrow — which
+is to say, where the movement goes.
+
+Two of them needed more than a side view. Cat–cow is drawn as two frames,
+since the whole exercise is the change between them. The 90/90 hip switch is
+drawn looking down, because from the side it is indistinguishable from sitting
+with the legs splayed — and it is labelled **from above**, because a figure
+drawn from above otherwise reads as one lying on the floor.
 
 ## Bertie's Biscuits
 
