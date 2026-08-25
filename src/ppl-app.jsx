@@ -1,6 +1,34 @@
 import { useEffect, useState } from "react";
 
 import { loadJSON, saveJSON } from "./storage";
+import { dayNum, shiftDay, shortDate, today } from "./dates";
+import { bestOf, bestPerDay } from "./lifts";
+import { Btn, SectionLabel, Stepper } from "./ui";
+import { TrendChart, WeekBars } from "./charts";
+import { WeightPanel } from "./weight";
+import { BLOCK, ReportScreen, buildBlocks } from "./report";
+import {
+  ACCENT_TEXT,
+  BG,
+  BODY,
+  CARD,
+  DISPLAY,
+  GOOD,
+  INK,
+  LEGS_C,
+  MUTE,
+  ON_ACCENT,
+  PULL_C,
+  PUSH_C,
+  RAISED,
+  REST_C,
+  RULE,
+  TEXT,
+  THEMES,
+  WASH,
+  WIN,
+  applyTheme,
+} from "./tokens";
 import {
   buildBackup,
   checkBackup,
@@ -16,44 +44,6 @@ import {
    deliberately unlike the other app on this domain, so the two home-screen
    icons and the two apps are never mistaken for each other.
    INK is a raised surface here, not the type colour — TEXT is the type. */
-/* Every colour and face is a CSS variable, so flipping data-theme on the root
-   repaints the whole app without threading a palette through the tree.
-   The two palettes live in ppl-theme.css. */
-const BG = "var(--bg)";
-const INK = "var(--ink)";
-const CARD = "var(--card)";
-const WASH = "var(--wash)";
-const RAISED = "var(--raised)";
-const RULE = "var(--rule)";
-const MUTE = "var(--mute)";
-const TEXT = "var(--text)";
-const GRID = "var(--grid)";
-const PUSH_C = "var(--push)";
-const PULL_C = "var(--pull)";
-const LEGS_C = "var(--legs)";
-const REST_C = "var(--rest)";
-const WIN = "var(--win)";
-const WARN = "var(--warn)";
-const ON_ACCENT = "var(--on-accent)";
-/* charts need a step that carries on the ground at 2px, which the fill
-   colours do not always do */
-const CHART = "var(--chart)";
-const CHART_OK = "var(--chart-ok)";
-/* WIN reads as a fill; type that means "up" needs a lighter step of it */
-const GOOD = "var(--good-text)";
-/* chart labels always take a face with lining figures: an old-style 6 in a
-   serif reads as a b, which is no good on an axis */
-const FIGURES = "var(--figures)";
-/* the day accents are fill colours; as type on the ground they need a lighter
-   step, which gothic's blood red in particular does not have */
-const ACCENT_TEXT = "var(--accent-text)";
-
-const THEMES = {
-  steel: { label: "Steel", note: "Blue on black." },
-  gothic: { label: "Gothic", note: "Iron, bone and blood red." },
-};
-const DISPLAY = "var(--display)";
-const BODY = "var(--body)";
 
 const LIBRARY = {
   chest: ["Bench press", "Incline bench press", "Cable flys"],
@@ -129,14 +119,14 @@ const CYCLE_LEN = CYCLE.length;
    figure is derived from logged rest days instead, so it can say five or six. */
 const SESSIONS_PER_BLOCK = 21;
 
+/* the habits this app tracks, and what a four-week block should hold of each */
+const HABITS = ["workout", "eat", "cardio"];
+
 const SET_CHOICES = [2, 3];
 const DEFAULT_SETS = 3;
 const setsFor = (g, sets) => (sets && sets[g]) || DEFAULT_SETS;
 const REP_LOW = 6;
 const REP_HIGH = 12;
-
-/* a report block: four weeks */
-const BLOCK = 28;
 
 /* days: how many cardio days a seven-day stretch should hold, for the weekly
    tile. perBlock: the same over a 28-day report block — three training days in
@@ -159,28 +149,6 @@ const cardioDue = (goal, pos) =>
 
 /* ============================ helpers ============================ */
 
-const today = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate()
-  ).padStart(2, "0")}`;
-};
-
-const shiftDay = (iso, n) => {
-  const [y, m, d] = iso.split("-").map(Number);
-  const dt = new Date(y, m - 1, d + n);
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(
-    dt.getDate()
-  ).padStart(2, "0")}`;
-};
-
-const dayNum = (iso) => {
-  const [y, m, d] = iso.split("-").map(Number);
-  return Math.round(Date.UTC(y, m - 1, d) / 86400000);
-};
-
-const shortDate = (iso) => `${iso.slice(8)}/${iso.slice(5, 7)}`;
-
 /* The built-in list for a muscle group plus anything added on the phone. */
 const listFor = (g, custom) => [...LIBRARY[g], ...((custom && custom[g]) || [])];
 
@@ -201,11 +169,6 @@ function buildSession(pos, picks, custom, sets) {
 
 const advance = (pos) => (pos % CYCLE_LEN) + 1;
 
-const bestOf = (history) => {
-  if (!history || !history.length) return null;
-  return history.reduce((a, b) => (b.w * b.r >= a.w * a.r ? b : a));
-};
-
 /* progressive overload: add a rep to the top of the range, then add 2.5kg and
    start again at the bottom of it */
 const nextTarget = (best) => {
@@ -215,232 +178,6 @@ const nextTarget = (best) => {
     : { w: +(best.w + 2.5).toFixed(1), r: REP_LOW };
 };
 
-/* ---- four-week blocks ----
- * Blocks run from the first day with any data, 28 days at a time. A block is
- * summarised the moment it closes and written to ppl-reports, so old numbers
- * stay put even once the rolling per-exercise history has scrolled past them.
- */
-const dataDates = (days, lifts, weights) => {
-  const seen = new Set([...Object.keys(days || {}), ...Object.keys(weights || {})]);
-  Object.values(lifts || {}).forEach((h) => h.forEach((e) => seen.add(e.d)));
-  return [...seen].filter(Boolean).sort();
-};
-
-/* Sets are ranked for the report the same way the overload rule works: heavier
-   wins, and at equal weight more reps wins. Ranking by volume (weight x reps)
-   would read the intended 12-reps-then-add-weight jump as a step backwards. */
-const cmpLift = (a, b) => (a.w !== b.w ? a.w - b.w : a.r - b.r);
-const bestLift = (list) => list.reduce((a, b) => (cmpLift(b, a) > 0 ? b : a));
-
-function summariseBlock(i, start, end, days, lifts, weights, t) {
-  const within = (d) => d >= start && d <= end;
-  const dayList = Object.keys(days || {}).filter(within);
-  const count = (k) => dayList.filter((d) => days[d][k]).length;
-
-  const weighIns = Object.entries(weights || {})
-    .filter(([d]) => within(d))
-    .sort((a, b) => (a[0] < b[0] ? -1 : 1));
-
-  const moves = [];
-  Object.entries(lifts || {}).forEach(([name, hist]) => {
-    const here = hist.filter((e) => within(e.d));
-    if (!here.length) return;
-    const before = hist.filter((e) => e.d < start);
-    /* measured against where the last block left off, or against the first set
-       of this one if there is nothing earlier */
-    const from = before.length ? bestLift(before) : here[0];
-    const to = bestLift(here);
-    const step = cmpLift(to, from);
-    moves.push({
-      name,
-      from,
-      to,
-      dir: step > 0 ? "up" : step < 0 ? "down" : "flat",
-      step,
-      sets: here.length,
-    });
-  });
-  moves.sort((a, b) => b.step - a.step);
-
-  const elapsed = Math.min(BLOCK, Math.max(0, dayNum(t) - dayNum(start) + 1));
-
-  return {
-    i,
-    start,
-    end,
-    elapsed,
-    complete: end < t,
-    sessions: count("workout"),
-    eat: count("eat"),
-    cardio: count("cardio"),
-    weightFrom: weighIns.length ? weighIns[0][1] : null,
-    weightTo: weighIns.length ? weighIns[weighIns.length - 1][1] : null,
-    weightChange:
-      weighIns.length > 1
-        ? +(weighIns[weighIns.length - 1][1] - weighIns[0][1]).toFixed(1)
-        : null,
-    up: moves.filter((m) => m.dir === "up"),
-    stalled: moves.filter((m) => m.dir !== "up"),
-  };
-}
-
-function buildBlocks(days, lifts, weights, t) {
-  const dates = dataDates(days, lifts, weights);
-  if (!dates.length) return [];
-  const anchor = dates[0];
-  const n = Math.floor((dayNum(t) - dayNum(anchor)) / BLOCK) + 1;
-  return Array.from({ length: n }, (_, i) =>
-    summariseBlock(
-      i,
-      shiftDay(anchor, i * BLOCK),
-      shiftDay(anchor, i * BLOCK + BLOCK - 1),
-      days,
-      lifts,
-      weights,
-      t
-    )
-  );
-}
-
-const bestPerDay = (hist) => {
-  const byDate = {};
-  (hist || []).forEach((s) => {
-    const cur = byDate[s.d];
-    if (!cur || s.w * s.r > cur.w * cur.r) byDate[s.d] = s;
-  });
-  return Object.entries(byDate)
-    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
-    .map(([d, s]) => ({ ...s, d }));
-};
-
-/* ============================ shared UI ============================ */
-
-function Btn({ children, onClick, style, aria, plain }) {
-  return (
-    <button
-      onClick={onClick}
-      aria-label={aria}
-      style={{
-        border: "none",
-        borderRadius: 12,
-        cursor: "pointer",
-        /* blackletter is unreadable at control sizes, so small buttons opt out */
-        fontFamily: plain ? BODY : DISPLAY,
-        letterSpacing: plain ? "0.02em" : "-0.02em",
-        textTransform: "uppercase",
-        ...style,
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function Stepper({ label, value, unit, onChange, step, min }) {
-  const [editing, setEditing] = useState(false);
-  const [text, setText] = useState("");
-  const btn = {
-    width: 56,
-    height: 56,
-    fontSize: 30,
-    background: CARD,
-    border: `1px solid ${MUTE}`,
-    color: TEXT,
-    lineHeight: 1,
-    flexShrink: 0,
-  };
-  return (
-    <div style={{ flex: 1, minWidth: 0 }}>
-      <div
-        style={{
-          fontSize: 12,
-          fontWeight: 800,
-          letterSpacing: "0.1em",
-          color: MUTE,
-          marginBottom: 5,
-        }}
-      >
-        {label}
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <Btn
-          aria={`Decrease ${label}`}
-          onClick={() => onChange(Math.max(min, +(value - step).toFixed(1)))}
-          style={btn}
-        >
-          &minus;
-        </Btn>
-        <div
-          style={{
-            flex: 1,
-            minWidth: 0,
-            display: "flex",
-            alignItems: "baseline",
-            justifyContent: "center",
-          }}
-        >
-          {/* tap the number to type it, for the jumps the buttons would take
-              all day to walk up */}
-          <input
-            value={editing ? text : String(value)}
-            onFocus={(e) => {
-              setEditing(true);
-              setText(String(value));
-              e.target.select();
-            }}
-            onChange={(e) => {
-              const t = e.target.value.replace(/[^0-9.]/g, "");
-              setText(t);
-              const n = parseFloat(t);
-              if (!isNaN(n) && n >= min && n < 1000) onChange(+n.toFixed(1));
-            }}
-            onBlur={() => setEditing(false)}
-            inputMode="decimal"
-            aria-label={label}
-            style={{
-              width: unit ? "62%" : "100%",
-              minWidth: 0,
-              border: "none",
-              outline: "none",
-              textAlign: unit ? "right" : "center",
-              fontFamily: DISPLAY,
-              fontSize: 30,
-              letterSpacing: "-0.03em",
-              color: TEXT,
-              background: "transparent",
-              padding: 0,
-            }}
-          />
-          {unit && <span style={{ fontSize: 15 }}>{unit}</span>}
-        </div>
-        <Btn
-          aria={`Increase ${label}`}
-          onClick={() => onChange(+(value + step).toFixed(1))}
-          style={btn}
-        >
-          +
-        </Btn>
-      </div>
-    </div>
-  );
-}
-
-function SectionLabel({ children, style }) {
-  return (
-    <div
-      style={{
-        fontSize: 13,
-        fontWeight: 800,
-        letterSpacing: "0.12em",
-        textTransform: "uppercase",
-        color: MUTE,
-        ...style,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
 
 /* ============================ session runner ============================ */
 
@@ -870,365 +607,6 @@ function ExerciseDetail({ name, hist, onBack }) {
   );
 }
 
-/* ============================ charts ============================ */
-
-/* whole numbers where the series is whole, one decimal where it is not */
-const fmtTick = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
-
-/* One series, so no legend — the heading names it. Solid hairline grid, a 2px
-   line, and every value also readable in the list underneath, so the chart is
-   never the only way to get a number. */
-function TrendChart({ points, unit, color, label, selected, onSelect }) {
-  const W = 320;
-  const H = 210;
-  const L = 36;
-  const R = 310;
-  const T = 14;
-  const B = 168;
-
-  const lo = Math.min(...points.map((p) => p.v));
-  const hi = Math.max(...points.map((p) => p.v));
-  const pad = hi - lo < 1 ? 1 : (hi - lo) * 0.15;
-  const yMin = lo - pad;
-  const yMax = hi + pad;
-
-  const t0 = dayNum(points[0].d);
-  const span = Math.max(1, dayNum(points[points.length - 1].d) - t0);
-
-  const x = (p) => (points.length === 1 ? (L + R) / 2 : L + ((dayNum(p.d) - t0) / span) * (R - L));
-  const y = (kg) => B - ((kg - yMin) / (yMax - yMin)) * (B - T);
-
-  const ticks = [yMax, (yMax + yMin) / 2, yMin];
-  const path = points.map((p) => `${x(p)},${y(p.v)}`).join(" ");
-  const showDots = points.length <= 24;
-  const lastP = points[points.length - 1];
-  const sel = selected != null ? points[selected] : null;
-
-  return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      style={{ width: "100%", height: "auto", display: "block", touchAction: "manipulation" }}
-      role="img"
-      aria-label={`${label}, ${points.length} points, latest ${lastP.v}${unit}`}
-    >
-      {ticks.map((t, i) => (
-        <g key={i}>
-          <line x1={L} x2={R} y1={y(t)} y2={y(t)} style={{ stroke: GRID }} strokeWidth="1" />
-          <text
-            x={L - 6}
-            y={y(t) + 4}
-            textAnchor="end"
-            fontSize="11"
-            fontWeight="700"
-            fontFamily={FIGURES}
-            style={{ fill: MUTE, fontVariantNumeric: "tabular-nums" }}
-          >
-            {fmtTick(t)}
-          </text>
-        </g>
-      ))}
-
-      {points.length > 1 && (
-        <polyline
-          points={path}
-          fill="none"
-          style={{ stroke: color }}
-          strokeWidth="2"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-      )}
-
-      {showDots &&
-        points.map((p, i) => (
-          <circle
-            key={p.d}
-            cx={x(p)}
-            cy={y(p.v)}
-            r={i === points.length - 1 ? 5 : 4}
-            style={{ fill: color, stroke: BG }}
-            strokeWidth="2"
-          />
-        ))}
-
-      {!showDots && (
-        <circle cx={x(lastP)} cy={y(lastP.v)} r="5" style={{ fill: color, stroke: BG }} strokeWidth="2" />
-      )}
-
-      {sel && (
-        <g>
-          <line x1={x(sel)} x2={x(sel)} y1={T} y2={B} style={{ stroke: MUTE }} strokeWidth="1" />
-          <circle cx={x(sel)} cy={y(sel.v)} r="6" style={{ fill: TEXT, stroke: BG }} strokeWidth="2" />
-        </g>
-      )}
-
-      <line x1={L} x2={R} y1={B} y2={B} style={{ stroke: RULE }} strokeWidth="1" />
-
-      <text x={L} y={B + 18} fontSize="11" fontWeight="700" style={{ fill: MUTE }} fontFamily={FIGURES}>
-        {shortDate(points[0].d)}
-      </text>
-      {points.length > 1 && (
-        <text
-          x={R}
-          y={B + 18}
-          textAnchor="end"
-          fontSize="11"
-          fontWeight="700"
-          style={{ fill: MUTE }}
-          fontFamily={FIGURES}
-        >
-          {shortDate(lastP.d)}
-        </text>
-      )}
-
-      {/* tap targets — full plot height, so a point never has to be hit dead-on */}
-      {points.map((p, i) => {
-        const w = points.length === 1 ? R - L : (R - L) / points.length;
-        return (
-          <rect
-            key={`hit-${p.d}`}
-            x={Math.max(L, x(p) - w / 2)}
-            y={T}
-            width={Math.max(24, w)}
-            height={B - T}
-            fill="transparent"
-            style={{ cursor: "pointer" }}
-            onClick={() => onSelect(selected === i ? null : i)}
-          />
-        );
-      })}
-    </svg>
-  );
-}
-
-/* ============================ four-week report ============================ */
-
-function BlockCard({ b, goal }) {
-  const target = { sessions: SESSIONS_PER_BLOCK, eat: BLOCK, cardio: GOALS[goal].perBlock };
-  const stat = (label, value, tgt) => (
-    <div key={label} style={{ flex: 1, background: WASH, padding: "10px 6px", textAlign: "center" }}>
-      <div style={{ fontFamily: DISPLAY, fontSize: 26, letterSpacing: "-0.02em" }}>
-        {value}
-        {tgt ? <span style={{ fontSize: 13, color: MUTE }}>/{tgt}</span> : null}
-      </div>
-      <div
-        style={{
-          fontSize: 10,
-          fontWeight: 800,
-          letterSpacing: "0.05em",
-          textTransform: "uppercase",
-          color: MUTE,
-          marginTop: 3,
-        }}
-      >
-        {label}
-      </div>
-    </div>
-  );
-
-  const line = (m, up) => (
-    <div
-      key={m.name}
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: 10,
-        padding: "11px 12px",
-        background: WASH,
-        marginBottom: 5,
-        borderLeft: `3px solid ${up ? WIN : RULE}`,
-      }}
-    >
-      <span style={{ fontSize: 15, fontWeight: 700, minWidth: 0 }}>{m.name}</span>
-      <span style={{ fontFamily: DISPLAY, fontSize: 15, flexShrink: 0, letterSpacing: "-0.02em" }}>
-        {m.from.w}×{m.from.r}
-        <span style={{ color: MUTE }}> → </span>
-        <span style={{ color: up ? GOOD : MUTE }}>
-          {m.to.w}×{m.to.r}
-        </span>
-      </span>
-    </div>
-  );
-
-  return (
-    <div style={{ marginBottom: 26 }}>
-      <div
-        style={{
-          background: b.complete ? RAISED : REST_C,
-          color: b.complete ? TEXT : ON_ACCENT,
-          padding: "10px 12px",
-        }}
-      >
-        <div style={{ fontFamily: DISPLAY, fontSize: 20, letterSpacing: "-0.02em" }}>
-          Weeks {b.i * 4 + 1}&ndash;{b.i * 4 + 4}
-        </div>
-        <div style={{ fontSize: 13, fontWeight: 700, opacity: 0.85 }}>
-          {shortDate(b.start)} – {shortDate(b.end)}
-          {b.complete ? "" : " · still running"}
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-        {stat("Sessions", b.sessions, target.sessions)}
-        {stat("Ate well", b.eat, target.eat)}
-        {target.cardio ? stat("Cardio", b.cardio, target.cardio) : null}
-      </div>
-
-      {(() => {
-        /* Only a finished block can be judged against a full four weeks — part
-           way through, "missed" would just be "not yet". */
-        if (!b.complete)
-          return (
-            <div style={{ fontSize: 14, color: MUTE, marginTop: 8, fontWeight: 700 }}>
-              Day {b.elapsed} of {BLOCK} — {BLOCK - b.elapsed} to go.
-            </div>
-          );
-        const missed = [
-          [Math.max(0, target.sessions - b.sessions), "sessions", "session"],
-          [Math.max(0, target.eat - b.eat), "days eating well", "day eating well"],
-          ...(target.cardio
-            ? [[Math.max(0, target.cardio - b.cardio), "cardio days", "cardio day"]]
-            : []),
-        ].filter(([n]) => n > 0);
-        return (
-          <div
-            style={{
-              marginTop: 8,
-              padding: "10px 12px",
-              background: missed.length ? WASH : "#EFF6F1",
-              borderLeft: `3px solid ${missed.length ? REST_C : WIN}`,
-              fontSize: 15,
-              fontWeight: 700,
-              lineHeight: 1.4,
-            }}
-          >
-            {missed.length ? (
-              <>
-                <span style={{ color: MUTE }}>Missed: </span>
-                {missed.map(([n, many, one], i) => (
-                  <span key={many}>
-                    {i ? " · " : ""}
-                    {n} {n === 1 ? one : many}
-                  </span>
-                ))}
-              </>
-            ) : (
-              "Hit every target — nothing missed."
-            )}
-          </div>
-        );
-      })()}
-
-      <div
-        style={{
-          marginTop: 8,
-          padding: "10px 12px",
-          background: WASH,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 10,
-        }}
-      >
-        <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: MUTE }}>
-          Body weight
-        </span>
-        <span style={{ fontFamily: DISPLAY, fontSize: 18, letterSpacing: "-0.02em" }}>
-          {b.weightFrom == null ? (
-            <span style={{ color: MUTE }}>—</span>
-          ) : (
-            <>
-              {b.weightFrom}
-              <span style={{ color: MUTE }}> → </span>
-              {b.weightTo}kg
-              {b.weightChange != null && (
-                <span style={{ color: b.weightChange > 0 ? MUTE : GOOD, marginLeft: 6 }}>
-                  {b.weightChange > 0 ? "+" : ""}
-                  {b.weightChange}
-                </span>
-              )}
-            </>
-          )}
-        </span>
-      </div>
-
-      {b.up.length + b.stalled.length === 0 ? (
-        <div style={{ fontSize: 15, color: MUTE, marginTop: 16, lineHeight: 1.4 }}>
-          No sets logged in these four weeks yet.
-        </div>
-      ) : (
-        <>
-          <SectionLabel style={{ margin: "16px 0 8px" }}>
-            Moved up &middot; {b.up.length}
-          </SectionLabel>
-          {b.up.length ? (
-            b.up.map((m) => line(m, true))
-          ) : (
-            <div style={{ fontSize: 15, color: MUTE }}>Nothing beat its previous best.</div>
-          )}
-
-          <SectionLabel style={{ margin: "16px 0 8px" }}>
-            Stalled or dropped &middot; {b.stalled.length}
-          </SectionLabel>
-          {b.stalled.length ? (
-            b.stalled.map((m) => line(m, false))
-          ) : (
-            <div style={{ fontSize: 15, color: MUTE }}>
-              Nothing stalled — every lift went up.
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-function ReportScreen({ blocks, goal, onBack }) {
-  return (
-    <div
-      className="pad-nav"
-      style={{ fontFamily: BODY, color: TEXT, background: BG, minHeight: "100vh" }}
-    >
-      <div style={{ background: INK, color: TEXT, padding: "14px 16px 16px" }}>
-        <Btn
-          plain
-          onClick={onBack}
-          style={{
-            background: "transparent",
-            color: TEXT,
-            border: `2px solid ${RULE}`,
-            fontSize: 13,
-            padding: "5px 10px",
-            marginBottom: 10,
-          }}
-        >
-          ← Back
-        </Btn>
-        <div
-          style={{
-            fontFamily: DISPLAY,
-            fontSize: 30,
-            textTransform: "uppercase",
-            letterSpacing: "-0.035em",
-          }}
-        >
-          Four-week report
-        </div>
-        <div style={{ fontSize: 14, fontWeight: 700, marginTop: 6, opacity: 0.9 }}>
-          Newest first. Each block is measured against the one before it.
-        </div>
-      </div>
-
-      <div style={{ padding: "14px 16px 0" }}>
-        {[...blocks].reverse().map((b) => (
-          <BlockCard key={b.i} b={b} goal={goal} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /* ============================ add an exercise ============================ */
 
 function AddExercise({ group, existing, onAdd }) {
@@ -1292,180 +670,7 @@ function AddExercise({ group, existing, onAdd }) {
   );
 }
 
-/* Sessions per week. Counts over ordered buckets, so bars rather than a line;
-   the running week is outlined instead of filled, since it is not done yet. */
-function WeekBars({ weeks, target }) {
-  const W = 320;
-  const H = 150;
-  const L = 26;
-  const R = 312;
-  const T = 12;
-  const B = 112;
-  const top = Math.max(target, ...weeks.map((w) => w.n), 1);
-  const y = (v) => B - (v / top) * (B - T);
-  const slot = (R - L) / weeks.length;
-  const barW = Math.min(18, slot - 12);
-
-  return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      style={{ width: "100%", height: "auto", display: "block" }}
-      role="img"
-      aria-label={`Sessions a week for the last ${weeks.length} weeks`}
-    >
-      {[top, target].map((v, i) => (
-        <g key={i}>
-          <line x1={L} x2={R} y1={y(v)} y2={y(v)} style={{ stroke: i ? RULE : GRID }} strokeWidth="1" />
-          <text
-            x={L - 5}
-            y={y(v) + 4}
-            textAnchor="end"
-            fontSize="10"
-            fontWeight="800"
-            style={{ fill: MUTE }}
-            fontFamily={FIGURES}
-          >
-            {v}
-          </text>
-        </g>
-      ))}
-
-      {weeks.map((w, i) => {
-        const cx = L + slot * i + slot / 2;
-        const h = Math.max(0, B - y(w.n));
-        return (
-          <g key={w.label}>
-            {w.n > 0 && (
-              <rect
-                x={cx - barW / 2}
-                y={y(w.n)}
-                width={barW}
-                height={h}
-                rx="4"
-                style={{
-                  fill: w.running ? "none" : w.n >= target ? CHART_OK : CHART,
-                  stroke: w.running ? CHART : "none",
-                }}
-                strokeWidth="2"
-              />
-            )}
-            <text
-              x={cx}
-              y={B + 16}
-              textAnchor="middle"
-              fontSize="10"
-              fontWeight="800"
-              style={{ fill: MUTE }}
-              fontFamily={FIGURES}
-            >
-              {w.label}
-            </text>
-            {i === weeks.length - 1 && w.n > 0 && (
-              <text
-                x={cx}
-                y={y(w.n) - 6}
-                textAnchor="middle"
-                fontSize="12"
-                fontWeight="800"
-                style={{ fill: TEXT }}
-                fontFamily={FIGURES}
-              >
-                {w.n}
-              </text>
-            )}
-          </g>
-        );
-      })}
-
-      <line x1={L} x2={R} y1={B} y2={B} style={{ stroke: RULE }} strokeWidth="1" />
-      <text x={L} y={H - 6} fontSize="10" fontWeight="700" style={{ fill: MUTE }} fontFamily={FIGURES}>
-        Reaching the line clears the week&rsquo;s target of {target}. This week is still open.
-      </text>
-    </svg>
-  );
-}
-
 /* ============================ weight entry ============================ */
-
-function WeightCard({ todayKg, lastKg, onSave }) {
-  const seed = todayKg != null ? todayKg : lastKg != null ? lastKg : "";
-  const [txt, setTxt] = useState(String(seed));
-  const num = parseFloat(txt);
-  const valid = !isNaN(num) && num > 0 && num < 500;
-  const bump = (d) => {
-    const base = valid ? num : lastKg != null ? lastKg : 80;
-    setTxt(String(+(base + d).toFixed(1)));
-  };
-  const btn = {
-    width: 62,
-    height: 62,
-    fontSize: 26,
-    background: CARD,
-    border: `1px solid ${MUTE}`,
-    color: TEXT,
-    lineHeight: 1,
-    flexShrink: 0,
-  };
-
-  return (
-    <div className="orn" style={{ border: `1px solid ${RULE}`, borderRadius: 14, padding: "12px 12px 14px", marginTop: 12 }}>
-      <SectionLabel style={{ marginBottom: 8 }}>
-        {todayKg != null ? "Today — logged" : "Today's weigh-in"}
-      </SectionLabel>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <Btn aria="Decrease weight" onClick={() => bump(-0.1)} style={btn}>
-          &minus;
-        </Btn>
-        <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", justifyContent: "center" }}>
-          <input
-            value={txt}
-            onChange={(e) => setTxt(e.target.value.replace(/[^0-9.]/g, ""))}
-            inputMode="decimal"
-            aria-label="Weight in kilograms"
-            placeholder="—"
-            style={{
-              width: 132,
-              maxWidth: "100%",
-              minWidth: 0,
-              border: "none",
-              outline: "none",
-              textAlign: "right",
-              fontFamily: DISPLAY,
-              fontSize: 40,
-              letterSpacing: "-0.03em",
-              color: TEXT,
-              background: "transparent",
-              padding: 0,
-            }}
-          />
-          <span style={{ fontFamily: DISPLAY, fontSize: 20, color: MUTE, marginLeft: 3 }}>
-            kg
-          </span>
-        </div>
-        <Btn aria="Increase weight" onClick={() => bump(0.1)} style={btn}>
-          +
-        </Btn>
-      </div>
-      <Btn
-        onClick={() => valid && onSave(+num.toFixed(1))}
-        style={{
-          width: "100%",
-          marginTop: 10,
-          padding: "16px 0",
-          fontSize: 19,
-          background: valid ? PUSH_C : WASH,
-          color: valid ? ON_ACCENT : MUTE,
-        }}
-      >
-        {todayKg != null ? "Update today" : "Save weight"}
-      </Btn>
-      <div style={{ fontSize: 13, color: MUTE, marginTop: 8, lineHeight: 1.35 }}>
-        Type it in, or nudge it 0.1 at a time. One a day is plenty — same time,
-        same scale.
-      </div>
-    </div>
-  );
-}
 
 /* ============================ backup ============================ */
 
@@ -1660,7 +865,22 @@ export default function PPLHub() {
   const [lifts, setLifts] = useState(() => loadJSON("ppl-lifts", {}));
   const [weights, setWeights] = useState(() => loadJSON("ppl-weight", {}));
 
-  const blocks = buildBlocks(days, lifts, weights, today());
+  const reportMetrics = [
+    { key: "workout", label: "Sessions", target: SESSIONS_PER_BLOCK, one: "session", many: "sessions" },
+    { key: "eat", label: "Ate well", target: BLOCK, one: "day eating well", many: "days eating well" },
+    ...(GOALS[goal].perBlock
+      ? [
+          {
+            key: "cardio",
+            label: "Cardio",
+            target: GOALS[goal].perBlock,
+            one: "cardio day",
+            many: "cardio days",
+          },
+        ]
+      : []),
+  ];
+  const blocks = buildBlocks(days, lifts, weights, today(), HABITS);
 
   /* Freeze each block's numbers as it closes: stored snapshots win over
      recomputed ones, so a finished report never shifts under you. */
@@ -1716,15 +936,7 @@ export default function PPLHub() {
     });
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) {
-      meta.setAttribute(
-        "content",
-        getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() ||
-          "#0B0C0F"
-      );
-    }
+    applyTheme(theme);
   }, [theme]);
 
   const t = today();
@@ -1780,7 +992,7 @@ export default function PPLHub() {
 
   if (report) {
     return (
-      <ReportScreen blocks={shownBlocks} goal={goal} onBack={() => setReport(false)} />
+      <ReportScreen blocks={shownBlocks} metrics={reportMetrics} onBack={() => setReport(false)} />
     );
   }
 
@@ -2281,120 +1493,7 @@ export default function PPLHub() {
       )}
 
       {/* ---------------- WEIGHT ---------------- */}
-      {tab === "weight" && (
-        <div>
-          <div style={{ background: INK, color: TEXT, padding: "16px" }}>
-            <div
-              style={{
-                fontFamily: DISPLAY,
-                fontSize: 34,
-                textTransform: "uppercase",
-                letterSpacing: "-0.03em",
-              }}
-            >
-              Body weight
-            </div>
-          </div>
-
-          <div style={{ padding: "14px 16px 0" }}>
-            {latest ? (
-              <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-                <div style={{ fontFamily: DISPLAY, fontSize: 52, letterSpacing: "-0.04em", lineHeight: 1 }}>
-                  {latest.kg}
-                  <span style={{ fontSize: 22, color: MUTE }}>kg</span>
-                </div>
-                {change != null && (
-                  <div style={{ fontSize: 16, fontWeight: 800, color: MUTE }}>
-                    {change > 0 ? "+" : ""}
-                    {change}kg since {shortDate(ref.d)}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div style={{ fontSize: 17, color: MUTE, lineHeight: 1.4 }}>
-                No weigh-ins yet. Put today&rsquo;s number in and the graph starts
-                from there.
-              </div>
-            )}
-
-            {wPoints.length > 0 && (
-              <div style={{ marginTop: 14 }}>
-                <SectionLabel style={{ marginBottom: 4 }}>
-                  {wPoints.length > 1 ? "Every weigh-in" : "First weigh-in"}
-                </SectionLabel>
-                <TrendChart
-                  points={wPoints.map((p) => ({ d: p.d, v: p.kg }))}
-                  unit="kg"
-                  color={PUSH_C}
-                  label="Body weight over time"
-                  selected={picked}
-                  onSelect={setPicked}
-                />
-                <div style={{ fontSize: 14, fontWeight: 700, color: MUTE, minHeight: 20 }}>
-                  {picked != null
-                    ? `${shortDate(wPoints[picked].d)} · ${wPoints[picked].kg}kg`
-                    : wPoints.length > 1
-                    ? "Tap the line to read a day."
-                    : ""}
-                </div>
-              </div>
-            )}
-
-            <WeightCard
-              todayKg={weights[t] != null ? weights[t] : null}
-              lastKg={latest ? latest.kg : null}
-              onSave={saveWeight}
-            />
-
-            {wPoints.length > 0 && (
-              <div style={{ marginTop: 22 }}>
-                <SectionLabel style={{ marginBottom: 8 }}>Recent</SectionLabel>
-                {wPoints
-                  .slice(-8)
-                  .reverse()
-                  .map((p, i, arr) => {
-                    const prev = arr[i + 1];
-                    const diff = prev ? +(p.kg - prev.kg).toFixed(1) : null;
-                    return (
-                      <div
-                        key={p.d}
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          gap: 10,
-                          padding: "11px 12px",
-                          background: WASH,
-                          borderRadius: 10,
-                          marginBottom: 5,
-                        }}
-                      >
-                        <span style={{ fontSize: 14, fontWeight: 800, color: MUTE }}>
-                          {shortDate(p.d)}
-                        </span>
-                        <span
-                          style={{
-                            fontFamily: DISPLAY,
-                            fontSize: 19,
-                            letterSpacing: "-0.02em",
-                          }}
-                        >
-                          {p.kg}kg
-                          {diff != null && (
-                            <span style={{ fontSize: 14, color: MUTE, marginLeft: 8 }}>
-                              {diff > 0 ? "+" : ""}
-                              {diff}
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                    );
-                  })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {tab === "weight" && <WeightPanel weights={weights} onSave={saveWeight} />}
 
       {/* ---------------- SETUP ---------------- */}
       {tab === "setup" && (

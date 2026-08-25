@@ -24,8 +24,8 @@ const META = {
     name: "Workout",
     short: "Workout",
     description: "Gym sessions, progressive overload and daily habits.",
-    background: "#FFFFFF",
-    theme: "#0D1014",
+    background: "#0B0C0F",
+    theme: "#0B0C0F",
   },
   ppl: {
     name: "PPL",

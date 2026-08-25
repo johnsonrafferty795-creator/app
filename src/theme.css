@@ -1,5 +1,5 @@
-/* Two themes for the PPL app. The other app on this domain loads only
-   index.css and stays black on white. */
+/* Two themes, shared by both workout trackers. The other apps on this domain
+   load only index.css and their own sheet. */
 
 @font-face {
   font-family: "Grenze Gotisch";

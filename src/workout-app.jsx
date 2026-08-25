@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { loadJSON, saveJSON } from "./storage";
 import {
@@ -9,18 +9,44 @@ import {
   saveBackup,
   summarise,
 } from "./backup";
+import { dayNum, shiftDay, shortDate, today } from "./dates";
+import { bestOf, bestPerDay } from "./lifts";
+import { Btn, SectionLabel, Stepper } from "./ui";
+import { TrendChart, WeekBars } from "./charts";
+import { WeightPanel } from "./weight";
+import { BLOCK, ReportScreen, buildBlocks } from "./report";
+import {
+  ACCENT_TEXT,
+  BG,
+  BODY,
+  CARD,
+  CHART,
+  DISPLAY,
+  GOOD,
+  INK,
+  MUTE,
+  ON_ACCENT,
+  RAISED,
+  RULE,
+  TEXT,
+  THEMES,
+  WASH,
+  WIN,
+  applyTheme,
+  PULL_C,
+  PUSH_C,
+} from "./tokens";
 
 /* ============================ constants ============================ */
 
-const INK = "#0D1014";
-const PUSH = "#A81419";
-const HOLD = "#0F4A72";
-const WIN = "#1E6B41";
-const WASH = "#F1F3F6";
-const RULE = "#B0B7C0";
-const MUTE = "#333B45";
-const DISPLAY = "'Arial Black','Helvetica Neue',Impact,sans-serif";
-const BODY = "'Helvetica Neue',Arial,Helvetica,sans-serif";
+/* This app used to carry its own hex palette. It now shares the two themes
+   with the other tracker: PUSH is the hard-day accent, HOLD the lighter one. */
+const PUSH = PUSH_C;
+const HOLD = PULL_C;
+
+/* what a four-week block should hold, on three sessions a week */
+const HABITS = ["workout", "light", "hard", "clean"];
+const PER_BLOCK = { workout: 12, clean: BLOCK, light: 12, hard: 4 };
 
 const LIBRARY = {
   chest: ["Bench press", "Incline bench press", "Cable flys"],
@@ -103,26 +129,6 @@ const PLAN = {
 
 /* ============================ helpers ============================ */
 
-const today = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate()
-  ).padStart(2, "0")}`;
-};
-
-const shiftDay = (iso, n) => {
-  const [y, m, d] = iso.split("-").map(Number);
-  const dt = new Date(y, m - 1, d + n);
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(
-    dt.getDate()
-  ).padStart(2, "0")}`;
-};
-
-const dayNum = (iso) => {
-  const [y, m, d] = iso.split("-").map(Number);
-  return Math.round(Date.UTC(y, m - 1, d) / 86400000);
-};
-
 const dayLetter = (iso) => {
   const [y, m, d] = iso.split("-").map(Number);
   return ["S", "M", "T", "W", "T", "F", "S"][new Date(y, m - 1, d).getDay()];
@@ -194,11 +200,6 @@ const advance = (pos) =>
     ? { week: pos.week, day: pos.day + 1 }
     : { week: pos.week === 1 ? 2 : 1, day: 1 };
 
-const bestOf = (history) => {
-  if (!history || !history.length) return null;
-  return history.reduce((a, b) => (b.w * b.r >= a.w * a.r ? b : a));
-};
-
 /* progressive overload rule: add a rep until 12, then add 2.5kg and drop to 8 */
 const nextTarget = (best) => {
   if (!best) return null;
@@ -206,96 +207,6 @@ const nextTarget = (best) => {
     ? { w: best.w, r: best.r + 1 }
     : { w: +(best.w + 2.5).toFixed(1), r: 8 };
 };
-
-const bestPerDay = (hist) => {
-  const byDate = {};
-  (hist || []).forEach((s) => {
-    const cur = byDate[s.d];
-    if (!cur || s.w * s.r > cur.w * cur.r) byDate[s.d] = s;
-  });
-  return Object.entries(byDate)
-    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
-    .map(([d, s]) => ({ ...s, d }));
-};
-
-/* ============================ shared UI ============================ */
-
-function Btn({ children, onClick, style, aria }) {
-  return (
-    <button
-      onClick={onClick}
-      aria-label={aria}
-      style={{
-        border: "none",
-        cursor: "pointer",
-        fontFamily: DISPLAY,
-        letterSpacing: "-0.02em",
-        textTransform: "uppercase",
-        ...style,
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function Stepper({ label, value, unit, onChange, step, min }) {
-  const btn = {
-    width: 56,
-    height: 56,
-    fontSize: 30,
-    background: "#fff",
-    border: `3px solid ${MUTE}`,
-    color: INK,
-    lineHeight: 1,
-    flexShrink: 0,
-  };
-  return (
-    <div style={{ flex: 1, minWidth: 0 }}>
-      <div
-        style={{
-          fontSize: 12,
-          fontWeight: 800,
-          letterSpacing: "0.1em",
-          color: MUTE,
-          marginBottom: 5,
-        }}
-      >
-        {label}
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <Btn
-          aria={`Decrease ${label}`}
-          onClick={() => onChange(Math.max(min, +(value - step).toFixed(1)))}
-          style={btn}
-        >
-          &minus;
-        </Btn>
-        <div
-          style={{
-            flex: 1,
-            textAlign: "center",
-            fontFamily: DISPLAY,
-            fontSize: 30,
-            letterSpacing: "-0.03em",
-            minWidth: 0,
-            overflow: "hidden",
-          }}
-        >
-          {value}
-          <span style={{ fontSize: 15 }}>{unit}</span>
-        </div>
-        <Btn
-          aria={`Increase ${label}`}
-          onClick={() => onChange(+(value + step).toFixed(1))}
-          style={btn}
-        >
-          +
-        </Btn>
-      </div>
-    </div>
-  );
-}
 
 /* ============================ add an exercise ============================ */
 
@@ -323,12 +234,12 @@ function AddExercise({ group, existing, onAdd }) {
           style={{
             flex: 1,
             minWidth: 0,
-            border: `3px solid ${RULE}`,
+            border: `1px solid ${RULE}`,
             padding: "12px 10px",
             fontSize: 16,
             fontFamily: BODY,
-            color: INK,
-            background: "#fff",
+            color: TEXT,
+            background: CARD,
             outline: "none",
           }}
         />
@@ -342,7 +253,7 @@ function AddExercise({ group, existing, onAdd }) {
             padding: "0 16px",
             fontSize: 16,
             background: valid ? PUSH : WASH,
-            color: valid ? "#fff" : MUTE,
+            color: valid ? ON_ACCENT : MUTE,
             flexShrink: 0,
           }}
         >
@@ -406,11 +317,11 @@ function Session({ session, lifts, onFinish, onQuit }) {
   };
 
   return (
-    <div className="pad-session" style={{ minHeight: "100vh", background: "#fff" }}>
+    <div className="pad-session" style={{ minHeight: "100vh", background: BG }}>
       <div
         style={{
           background: session.accent,
-          color: "#fff",
+          color: ON_ACCENT,
           padding: "14px 16px",
         }}
       >
@@ -429,9 +340,9 @@ function Session({ session, lifts, onFinish, onQuit }) {
             onClick={onQuit}
             style={{
               background: "transparent",
-              color: "#fff",
+              color: ON_ACCENT,
               fontSize: 13,
-              border: "2px solid rgba(255,255,255,.6)",
+              border: `1px solid ${ON_ACCENT}66`,
               padding: "4px 9px",
             }}
           >
@@ -480,7 +391,8 @@ function Session({ session, lifts, onFinish, onQuit }) {
         <div
           style={{
             background: beaten ? WIN : WASH,
-            color: beaten ? "#fff" : INK,
+            color: beaten ? ON_ACCENT : TEXT,
+            borderRadius: 12,
             padding: "10px 12px",
             marginBottom: 14,
           }}
@@ -518,11 +430,13 @@ function Session({ session, lifts, onFinish, onQuit }) {
         {sets.map((s, si) => (
           <div
             key={si}
+            className="orn"
             style={{
-              border: `3px solid ${s.done ? WIN : RULE}`,
+              border: `1px solid ${s.done ? WIN : RULE}`,
+              borderRadius: 14,
               padding: "10px 12px 12px",
               marginBottom: 10,
-              background: s.done ? "#F0F7F3" : "#fff",
+              background: s.done ? "#12261F" : CARD,
             }}
           >
             <div
@@ -541,7 +455,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
                 label="WEIGHT"
                 value={s.w}
                 unit="kg"
-                step={2.5}
+                step={0.5}
                 min={0}
                 onChange={(v) => setField(si, "w", v)}
               />
@@ -561,8 +475,9 @@ function Session({ session, lifts, onFinish, onQuit }) {
                 marginTop: 10,
                 padding: "14px 0",
                 fontSize: 18,
-                background: s.done ? WIN : INK,
-                color: "#fff",
+                background: s.done ? WIN : RAISED,
+                color: s.done ? ON_ACCENT : TEXT,
+                border: `1px solid ${s.done ? WIN : RULE}`,
               }}
             >
               {s.done ? "Done ✓" : "Mark set done"}
@@ -579,8 +494,8 @@ function Session({ session, lifts, onFinish, onQuit }) {
           right: 0,
           bottom: 0,
           padding: 12,
-          background: "#fff",
-          borderTop: `4px solid ${INK}`,
+          background: INK,
+          borderTop: `1px solid ${RULE}`,
         }}
       >
         <Btn
@@ -590,7 +505,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
             padding: "18px 0",
             fontSize: 21,
             background: session.accent,
-            color: "#fff",
+            color: ON_ACCENT,
           }}
         >
           {idx < session.items.length - 1 ? "Next exercise →" : "Finish session"}
@@ -603,6 +518,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
 /* ============================ overload detail ============================ */
 
 function ExerciseDetail({ name, hist, onBack }) {
+  const [picked, setPicked] = useState(null);
   const sessions = bestPerDay(hist);
   const first = sessions[0];
   const best = bestOf(hist);
@@ -612,14 +528,14 @@ function ExerciseDetail({ name, hist, onBack }) {
   const gain = first && best ? +(best.w - first.w).toFixed(1) : 0;
 
   return (
-    <div style={{ fontFamily: BODY, color: INK, background: "#fff", minHeight: "100vh", paddingBottom: 40 }}>
-      <div style={{ background: INK, color: "#fff", padding: "14px 16px 16px" }}>
+    <div style={{ fontFamily: BODY, color: TEXT, background: CARD, minHeight: "100vh", paddingBottom: 40 }}>
+      <div style={{ background: INK, color: TEXT, padding: "14px 16px 16px" }}>
         <Btn
           onClick={onBack}
           style={{
             background: "transparent",
-            color: "#fff",
-            border: "2px solid rgba(255,255,255,.6)",
+            color: TEXT,
+            border: `1px solid ${RULE}`,
             fontSize: 13,
             padding: "5px 10px",
             marginBottom: 10,
@@ -641,7 +557,7 @@ function ExerciseDetail({ name, hist, onBack }) {
       </div>
 
       <div style={{ padding: "14px 16px 0" }}>
-        <div style={{ background: WIN, color: "#fff", padding: "12px 14px" }}>
+        <div style={{ background: WIN, color: ON_ACCENT, padding: "12px 14px", borderRadius: 12 }}>
           <div
             style={{
               fontSize: 12,
@@ -667,7 +583,7 @@ function ExerciseDetail({ name, hist, onBack }) {
             ["Best", best ? `${best.w}kg × ${best.r}` : "—"],
             ["Weight up", `${gain >= 0 ? "+" : ""}${gain}kg`],
           ].map(([label, val]) => (
-            <div key={label} style={{ flex: 1, background: WASH, padding: "10px 8px", textAlign: "center" }}>
+            <div key={label} style={{ flex: 1, background: WASH, padding: "10px 8px", textAlign: "center", borderRadius: 10 }}>
               <div style={{ fontFamily: DISPLAY, fontSize: 19, letterSpacing: "-0.02em" }}>{val}</div>
               <div
                 style={{
@@ -684,6 +600,25 @@ function ExerciseDetail({ name, hist, onBack }) {
             </div>
           ))}
         </div>
+
+        {sessions.length > 1 && (
+          <div style={{ marginTop: 20 }}>
+            <SectionLabel style={{ marginBottom: 4 }}>Weight over time</SectionLabel>
+            <TrendChart
+              points={sessions.map((x) => ({ d: x.d, v: x.w }))}
+              unit="kg"
+              color={CHART}
+              label={`${name} weight over time`}
+              selected={picked}
+              onSelect={setPicked}
+            />
+            <div style={{ fontSize: 14, fontWeight: 700, color: MUTE, minHeight: 20 }}>
+              {picked != null
+                ? `${shortDate(sessions[picked].d)} · ${sessions[picked].w}kg × ${sessions[picked].r}`
+                : "Tap the line to read a session."}
+            </div>
+          </div>
+        )}
 
         <div
           style={{
@@ -708,6 +643,7 @@ function ExerciseDetail({ name, hist, onBack }) {
                 position: "relative",
                 marginBottom: 6,
                 background: WASH,
+                borderRadius: 10,
                 overflow: "hidden",
               }}
             >
@@ -718,7 +654,7 @@ function ExerciseDetail({ name, hist, onBack }) {
                   top: 0,
                   bottom: 0,
                   width: `${pct}%`,
-                  background: isBest ? WIN : "#D6DBE1",
+                  background: isBest ? WIN : "rgba(59,130,246,0.32)",
                 }}
               />
               <div
@@ -736,7 +672,7 @@ function ExerciseDetail({ name, hist, onBack }) {
                     fontFamily: DISPLAY,
                     fontSize: 21,
                     letterSpacing: "-0.03em",
-                    color: isBest ? "#fff" : INK,
+                    color: isBest ? ON_ACCENT : TEXT,
                   }}
                 >
                   {s.w}kg × {s.r}
@@ -745,7 +681,7 @@ function ExerciseDetail({ name, hist, onBack }) {
                   style={{
                     fontSize: 13,
                     fontWeight: 800,
-                    color: isBest ? "#fff" : MUTE,
+                    color: isBest ? ON_ACCENT : MUTE,
                     flexShrink: 0,
                   }}
                 >
@@ -819,7 +755,7 @@ function BackupCard({ app, prefix, keys, accent }) {
   const sum = pending ? summarise(pending, prefix) : null;
 
   return (
-    <div style={{ borderTop: `4px solid ${INK}`, marginTop: 20, paddingTop: 14 }}>
+    <div style={{ borderTop: `1px solid ${RULE}`, marginTop: 20, paddingTop: 14 }}>
       <div
         style={{
           fontSize: 13,
@@ -846,7 +782,7 @@ function BackupCard({ app, prefix, keys, accent }) {
               padding: "16px 0",
               fontSize: 18,
               background: accent,
-              color: "#fff",
+              color: ON_ACCENT,
             }}
           >
             Export a backup
@@ -863,9 +799,9 @@ function BackupCard({ app, prefix, keys, accent }) {
               letterSpacing: "-0.02em",
               textTransform: "uppercase",
               textAlign: "center",
-              background: "#fff",
-              color: INK,
-              border: `3px solid ${RULE}`,
+              background: CARD,
+              color: TEXT,
+              border: `1px solid ${RULE}`,
               cursor: "pointer",
             }}
           >
@@ -881,7 +817,7 @@ function BackupCard({ app, prefix, keys, accent }) {
       )}
 
       {stage === "confirm" && sum && (
-        <div style={{ border: `3px solid ${accent}`, padding: "12px 12px 14px" }}>
+        <div className="orn" style={{ border: `1px solid ${accent}`, borderRadius: 14, padding: "12px 12px 14px" }}>
           <div
             style={{
               fontFamily: DISPLAY,
@@ -914,7 +850,7 @@ function BackupCard({ app, prefix, keys, accent }) {
               padding: "16px 0",
               fontSize: 18,
               background: accent,
-              color: "#fff",
+              color: ON_ACCENT,
             }}
           >
             Replace everything
@@ -929,9 +865,9 @@ function BackupCard({ app, prefix, keys, accent }) {
               marginTop: 8,
               padding: "14px 0",
               fontSize: 16,
-              background: "#fff",
-              color: INK,
-              border: `3px solid ${RULE}`,
+              background: CARD,
+              color: TEXT,
+              border: `1px solid ${RULE}`,
             }}
           >
             Cancel
@@ -960,9 +896,12 @@ export default function WorkoutHub() {
   const profile = loadJSON("wk-profile", {});
   const [picks, setPicks] = useState(profile.picks || DEFAULT_PICKS);
   const [custom, setCustom] = useState(profile.custom || {});
+  const [theme, setTheme] = useState(profile.theme || "steel");
   const [pos, setPos] = useState(profile.pos || { week: 1, day: 1 });
   const [days, setDays] = useState(() => loadJSON("wk-days", {}));
   const [lifts, setLifts] = useState(() => loadJSON("wk-lifts", {}));
+  const [weights, setWeights] = useState(() => loadJSON("wk-weight", {}));
+  const [report, setReport] = useState(false);
 
   const persist = (key, value) => {
     try {
@@ -974,11 +913,17 @@ export default function WorkoutHub() {
     }
   };
 
-  const saveProfile = (nextPicks, nextPos, nextCustom = custom) => {
+  const saveProfile = (nextPicks, nextPos, nextCustom = custom, nextTheme = theme) => {
     setPicks(nextPicks);
     setPos(nextPos);
     setCustom(nextCustom);
-    persist("wk-profile", { picks: nextPicks, pos: nextPos, custom: nextCustom });
+    setTheme(nextTheme);
+    persist("wk-profile", {
+      picks: nextPicks,
+      pos: nextPos,
+      custom: nextCustom,
+      theme: nextTheme,
+    });
   };
 
   /* a new exercise goes on the list and is ticked straight away */
@@ -995,8 +940,18 @@ export default function WorkoutHub() {
       [g]: (custom[g] || []).filter((n) => n !== name),
     });
 
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
   const t = today();
   const flags = days[t] || {};
+
+  const saveWeight = (kg) => {
+    const next = { ...weights, [t]: kg };
+    setWeights(next);
+    persist("wk-weight", next);
+  };
 
   const toggleFlag = (k) => {
     const next = { ...days, [t]: { ...flags, [k]: !flags[k] } };
@@ -1024,8 +979,34 @@ export default function WorkoutHub() {
 
     persist("wk-lifts", nextLifts);
     persist("wk-days", nextDays);
-    persist("wk-profile", { picks, pos: nextPos, custom });
+    persist("wk-profile", { picks, pos: nextPos, custom, theme });
   };
+
+  const reportMetrics = [
+    { key: "workout", label: "Sessions", target: PER_BLOCK.workout, one: "session", many: "sessions" },
+    { key: "clean", label: "Ate clean", target: PER_BLOCK.clean, one: "day eating clean", many: "days eating clean" },
+    { key: "light", label: "Light", target: PER_BLOCK.light, one: "light cardio day", many: "light cardio days" },
+    { key: "hard", label: "Hard", target: PER_BLOCK.hard, one: "hard cardio day", many: "hard cardio days" },
+  ];
+  const blocks = buildBlocks(days, lifts, weights, today(), HABITS);
+  const shownBlocks = (() => {
+    const stored = loadJSON("wk-reports", {});
+    return blocks.map((b) => (b.complete && stored[b.i]) || b);
+  })();
+
+  useEffect(() => {
+    const done = blocks.filter((b) => b.complete);
+    if (!done.length) return;
+    const stored = loadJSON("wk-reports", {});
+    let changed = false;
+    done.forEach((b) => {
+      if (!stored[b.i]) {
+        stored[b.i] = b;
+        changed = true;
+      }
+    });
+    if (changed) persist("wk-reports", stored);
+  });
 
   if (running) {
     return (
@@ -1034,6 +1015,16 @@ export default function WorkoutHub() {
         lifts={lifts}
         onFinish={finishSession}
         onQuit={() => setRunning(false)}
+      />
+    );
+  }
+
+  if (report) {
+    return (
+      <ReportScreen
+        blocks={shownBlocks}
+        metrics={reportMetrics}
+        onBack={() => setReport(false)}
       />
     );
   }
@@ -1050,6 +1041,16 @@ export default function WorkoutHub() {
 
   /* ---- weekly counts (last 7 days) ---- */
   const week7 = Array.from({ length: 7 }, (_, i) => shiftDay(t, -6 + i));
+  /* eight weekly buckets ending today; the last one is still running */
+  const weekBars = Array.from({ length: 8 }, (_, i) => {
+    const back = (7 - i) * 7 + 6;
+    const window = Array.from({ length: 7 }, (_, j) => shiftDay(t, -back + j));
+    return {
+      label: i === 7 ? "now" : `${7 - i}w`,
+      n: window.filter((d) => days[d] && days[d].workout).length,
+      running: i === 7,
+    };
+  });
   const count = (k) => week7.filter((d) => days[d] && days[d][k]).length;
 
   /* ---- keeping him honest: how long since the last one, how many lately ---- */
@@ -1074,8 +1075,8 @@ export default function WorkoutHub() {
       className="pad-nav"
       style={{
         fontFamily: BODY,
-        color: INK,
-        background: "#fff",
+        color: TEXT,
+        background: BG,
         minHeight: "100vh",
         WebkitTextSizeAdjust: "100%",
       }}
@@ -1084,7 +1085,7 @@ export default function WorkoutHub() {
         <div
           style={{
             background: PUSH,
-            color: "#fff",
+            color: ON_ACCENT,
             padding: "8px 14px",
             fontSize: 14,
             fontWeight: 700,
@@ -1098,7 +1099,7 @@ export default function WorkoutHub() {
       {/* ---------------- TODAY ---------------- */}
       {tab === "today" && (
         <div>
-          <div style={{ background: INK, color: "#fff", padding: "16px 16px 18px" }}>
+          <div style={{ background: INK, color: TEXT, padding: "16px 16px 18px" }}>
             <div
               style={{
                 fontSize: 13,
@@ -1129,10 +1130,11 @@ export default function WorkoutHub() {
                 fontFamily: DISPLAY,
                 fontSize: 19,
                 marginTop: 10,
-                color: "#fff",
+                color: ON_ACCENT,
                 background: session.accent,
                 display: "inline-block",
-                padding: "6px 10px",
+                padding: "6px 12px",
+                borderRadius: 999,
                 textTransform: "uppercase",
                 letterSpacing: "-0.02em",
               }}
@@ -1146,8 +1148,9 @@ export default function WorkoutHub() {
               <div
                 style={{
                   background: HOLD,
-                  color: "#fff",
+                  color: ON_ACCENT,
                   padding: "12px 14px",
+                  borderRadius: 12,
                   marginBottom: 14,
                 }}
               >
@@ -1169,8 +1172,9 @@ export default function WorkoutHub() {
               <div
                 style={{
                   background: slipping ? PUSH : WIN,
-                  color: "#fff",
+                  color: ON_ACCENT,
                   padding: "12px 14px",
+                  borderRadius: 12,
                   marginBottom: 14,
                 }}
               >
@@ -1209,7 +1213,7 @@ export default function WorkoutHub() {
               style={{
                 fontSize: 16,
                 fontWeight: 700,
-                color: session.accent,
+                color: ACCENT_TEXT,
                 marginTop: 8,
               }}
             >
@@ -1224,7 +1228,7 @@ export default function WorkoutHub() {
                   background: WASH,
                   padding: "14px 12px",
                   marginTop: 14,
-                  borderLeft: `8px solid ${HOLD}`,
+                  borderLeft: `3px solid ${HOLD}`,
                 }}
               >
                 <div style={{ fontSize: 16, lineHeight: 1.35 }}>
@@ -1258,7 +1262,7 @@ export default function WorkoutHub() {
                     padding: "22px 0",
                     fontSize: 26,
                     background: session.accent,
-                    color: "#fff",
+                    color: ON_ACCENT,
                   }}
                 >
                   Start session
@@ -1269,7 +1273,7 @@ export default function WorkoutHub() {
             <div
               style={{
                 marginTop: 22,
-                borderTop: `4px solid ${INK}`,
+                borderTop: `1px solid ${RULE}`,
                 paddingTop: 12,
               }}
             >
@@ -1302,8 +1306,8 @@ export default function WorkoutHub() {
                     marginBottom: 8,
                     fontSize: 20,
                     background: flags[k] ? WIN : WASH,
-                    color: flags[k] ? "#fff" : INK,
-                    border: `3px solid ${flags[k] ? WIN : RULE}`,
+                    color: flags[k] ? ON_ACCENT : TEXT,
+                    border: `1px solid ${flags[k] ? WIN : RULE}`,
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
@@ -1321,7 +1325,7 @@ export default function WorkoutHub() {
       {/* ---------------- PROGRESS ---------------- */}
       {tab === "progress" && (
         <div>
-          <div style={{ background: INK, color: "#fff", padding: "16px" }}>
+          <div style={{ background: INK, color: TEXT, padding: "16px" }}>
             <div
               style={{
                 fontFamily: DISPLAY,
@@ -1335,6 +1339,30 @@ export default function WorkoutHub() {
           </div>
 
           <div style={{ padding: "14px 16px 0" }}>
+            {shownBlocks.length > 0 && (
+              <Btn
+                onClick={() => setReport(true)}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  background: RAISED,
+                  color: TEXT,
+                  padding: "12px 14px",
+                  marginBottom: 16,
+                }}
+              >
+                <SectionLabel style={{ marginBottom: 2 }}>Four-week report</SectionLabel>
+                <div style={{ fontFamily: DISPLAY, fontSize: 22, letterSpacing: "-0.02em" }}>
+                  Weeks {shownBlocks[shownBlocks.length - 1].i * 4 + 1}&ndash;
+                  {shownBlocks[shownBlocks.length - 1].i * 4 + 4}
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 700, marginTop: 2 }}>
+                  {shownBlocks[shownBlocks.length - 1].up.length} up &middot;{" "}
+                  {shownBlocks[shownBlocks.length - 1].stalled.length} stalled — tap to read
+                </div>
+              </Btn>
+            )}
+
             <div
               style={{
                 fontSize: 13,
@@ -1362,7 +1390,7 @@ export default function WorkoutHub() {
                     style={{
                       flex: 1,
                       background: hit ? WIN : WASH,
-                      color: hit ? "#fff" : INK,
+                      color: hit ? ON_ACCENT : TEXT,
                       padding: "10px 6px",
                       textAlign: "center",
                     }}
@@ -1385,6 +1413,11 @@ export default function WorkoutHub() {
                   </div>
                 );
               })}
+            </div>
+
+            <div style={{ marginTop: 22 }}>
+              <SectionLabel style={{ marginBottom: 4 }}>Sessions a week</SectionLabel>
+              <WeekBars weeks={weekBars} target={3} />
             </div>
 
             <div style={{ marginTop: 20 }}>
@@ -1482,7 +1515,7 @@ export default function WorkoutHub() {
                       alignItems: "center",
                       gap: 10,
                       background: WASH,
-                      color: INK,
+                      color: TEXT,
                       padding: "13px 12px",
                       marginBottom: 6,
                       textAlign: "left",
@@ -1503,7 +1536,7 @@ export default function WorkoutHub() {
                       style={{
                         fontFamily: DISPLAY,
                         fontSize: 20,
-                        color: up ? WIN : INK,
+                        color: up ? GOOD : TEXT,
                         flexShrink: 0,
                       }}
                     >
@@ -1517,10 +1550,12 @@ export default function WorkoutHub() {
         </div>
       )}
 
+      {tab === "weight" && <WeightPanel weights={weights} onSave={saveWeight} />}
+
       {/* ---------------- SETUP ---------------- */}
       {tab === "setup" && (
         <div>
-          <div style={{ background: INK, color: "#fff", padding: "16px" }}>
+          <div style={{ background: INK, color: TEXT, padding: "16px" }}>
             <div
               style={{
                 fontFamily: DISPLAY,
@@ -1537,6 +1572,32 @@ export default function WorkoutHub() {
           </div>
 
           <div style={{ padding: "14px 16px 0" }}>
+            <SectionLabel style={{ marginBottom: 8 }}>Look</SectionLabel>
+            <div style={{ display: "flex", gap: 6 }}>
+              {Object.entries(THEMES).map(([k, th]) => {
+                const on = theme === k;
+                return (
+                  <Btn
+                    key={k}
+                    onClick={() => saveProfile(picks, pos, custom, k)}
+                    style={{
+                      flex: 1,
+                      padding: "16px 4px",
+                      fontSize: 17,
+                      background: on ? PUSH : CARD,
+                      color: on ? ON_ACCENT : TEXT,
+                      border: `1px solid ${on ? PUSH : RULE}`,
+                    }}
+                  >
+                    {th.label}
+                  </Btn>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 14, color: MUTE, marginTop: 8 }}>{THEMES[theme].note}</div>
+
+            <div style={{ borderTop: `1px solid ${RULE}`, marginTop: 20, paddingTop: 14 }} />
+
             {Object.keys(LIBRARY).map((g) => (
               <div key={g} style={{ marginBottom: 20 }}>
                 <div
@@ -1545,8 +1606,8 @@ export default function WorkoutHub() {
                     fontSize: 24,
                     textTransform: "uppercase",
                     letterSpacing: "-0.03em",
-                    color: FOCUS.includes(g) ? PUSH : INK,
-                    borderBottom: `4px solid ${FOCUS.includes(g) ? PUSH : MUTE}`,
+                    color: FOCUS.includes(g) ? ACCENT_TEXT : TEXT,
+                    borderBottom: `1px solid ${RULE}`,
                     paddingBottom: 4,
                     marginBottom: 8,
                   }}
@@ -1574,9 +1635,9 @@ export default function WorkoutHub() {
                           textAlign: "left",
                           padding: "13px 12px",
                           fontSize: 18,
-                          background: on ? INK : "#fff",
-                          color: on ? "#fff" : INK,
-                          border: `3px solid ${on ? INK : RULE}`,
+                          background: on ? RAISED : CARD,
+                          color: on ? ON_ACCENT : TEXT,
+                          border: `1px solid ${on ? INK : RULE}`,
                           display: "flex",
                           justifyContent: "space-between",
                           alignItems: "center",
@@ -1594,9 +1655,9 @@ export default function WorkoutHub() {
                             width: 52,
                             flexShrink: 0,
                             fontSize: 20,
-                            background: "#fff",
+                            background: CARD,
                             color: MUTE,
-                            border: `3px solid ${RULE}`,
+                            border: `1px solid ${RULE}`,
                           }}
                         >
                           ×
@@ -1620,7 +1681,7 @@ export default function WorkoutHub() {
               accent={PUSH}
             />
 
-            <div style={{ borderTop: `4px solid ${INK}`, paddingTop: 12 }}>
+            <div style={{ borderTop: `1px solid ${RULE}`, paddingTop: 12 }}>
               <div
                 style={{
                   fontSize: 13,
@@ -1645,9 +1706,9 @@ export default function WorkoutHub() {
                           flex: "1 0 30%",
                           padding: "12px 6px",
                           fontSize: 15,
-                          background: on ? (w === 1 ? PUSH : HOLD) : "#fff",
-                          color: on ? "#fff" : INK,
-                          border: `3px solid ${on ? (w === 1 ? PUSH : HOLD) : RULE}`,
+                          background: on ? (w === 1 ? PUSH : HOLD) : CARD,
+                          color: on ? ON_ACCENT : TEXT,
+                          border: `1px solid ${on ? (w === 1 ? PUSH : HOLD) : RULE}`,
                         }}
                       >
                         W{w} D{d}
@@ -1670,24 +1731,27 @@ export default function WorkoutHub() {
           right: 0,
           bottom: 0,
           display: "flex",
-          borderTop: `4px solid ${INK}`,
-          background: "#fff",
+          borderTop: `1px solid ${RULE}`,
+          background: INK,
         }}
       >
         {[
           ["today", "Today"],
           ["progress", "Progress"],
-          ["setup", "Exercises"],
+          ["weight", "Weight"],
+          ["setup", "Plan"],
         ].map(([k, label]) => (
           <Btn
             key={k}
+            plain
             onClick={() => setTab(k)}
             style={{
+              borderRadius: 0,
               flex: 1,
               padding: "18px 0",
-              fontSize: 16,
-              background: tab === k ? INK : "#fff",
-              color: tab === k ? "#fff" : MUTE,
+              fontSize: 15,
+              background: tab === k ? RAISED : BG,
+              color: tab === k ? TEXT : MUTE,
             }}
           >
             {label}

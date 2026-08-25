@@ -163,6 +163,18 @@ the phone's current data is written over. A backup is stamped with the app it
 came from, since they share an origin and would otherwise overwrite each
 other.
 
+## Shared code
+
+Both trackers now sit on the same small layer, so a fix lands in both at once
+rather than in whichever one was open: `tokens.js` (the CSS-variable palette),
+`theme.css` (the two themes and the gothic ornament), `dates.js`, `lifts.js`,
+`ui.jsx` (buttons, the typeable stepper), `charts.jsx` (the trend line and the
+weekly bars), `report.jsx` (four-week blocks, generic over whichever habits an
+app tracks), `weight.jsx` (the whole body-weight screen) and `backup.js`.
+
+What stays per app is the training plan: the rotation, the set rules and the
+daily habits. Those are genuinely different and are meant to be.
+
 ## Look
 
 The apps are deliberately unalike, so none is opened by mistake. The original is
