@@ -129,7 +129,9 @@ const CYCLE_LEN = CYCLE.length;
    figure is derived from logged rest days instead, so it can say five or six. */
 const SESSIONS_PER_BLOCK = 21;
 
-const SETS = 3;
+const SET_CHOICES = [2, 3];
+const DEFAULT_SETS = 3;
+const setsFor = (g, sets) => (sets && sets[g]) || DEFAULT_SETS;
 const REP_LOW = 6;
 const REP_HIGH = 12;
 
@@ -184,13 +186,14 @@ const listFor = (g, custom) => [...LIBRARY[g], ...((custom && custom[g]) || [])]
 
 /* Every exercise ticked for a muscle group is in the session — not one of them.
    List order, so the session doesn't reshuffle when a choice is toggled. */
-function buildSession(pos, picks, custom) {
+function buildSession(pos, picks, custom, sets) {
   const spec = CYCLE[pos - 1];
   const items = [];
   spec.groups.forEach((g) => {
     const chosen = picks[g] || [];
     listFor(g, custom).forEach((name) => {
-      if (chosen.includes(name)) items.push({ group: g, name, sets: SETS });
+      if (chosen.includes(name))
+        items.push({ group: g, name, sets: setsFor(g, sets) });
     });
   });
   return { pos, key: spec.key, label: spec.label, accent: spec.color, items };
@@ -1648,6 +1651,7 @@ export default function PPLHub() {
   const profile = loadJSON("ppl-profile", {});
   const [picks, setPicks] = useState(profile.picks || DEFAULT_PICKS);
   const [custom, setCustom] = useState(profile.custom || {});
+  const [sets, setSets] = useState(profile.sets || {});
   /* positions 5-7 exist only in the old seven-day rotation; fold them back in */
   const [pos, setPos] = useState(((profile.pos || 1) - 1) % CYCLE_LEN + 1);
   const [goal, setGoal] = useState(profile.goal || "maintain");
@@ -1687,11 +1691,12 @@ export default function PPLHub() {
   };
 
   const saveProfile = (next) => {
-    const merged = { picks, pos, goal, custom, theme, ...next };
+    const merged = { picks, pos, goal, custom, theme, sets, ...next };
     if (next.picks) setPicks(next.picks);
     if (next.pos) setPos(next.pos);
     if (next.goal) setGoal(next.goal);
     if (next.custom) setCustom(next.custom);
+    if (next.sets) setSets(next.sets);
     if (next.theme) setTheme(next.theme);
     persist("ppl-profile", merged);
   };
@@ -1724,7 +1729,7 @@ export default function PPLHub() {
 
   const t = today();
   const flags = days[t] || {};
-  const session = buildSession(pos, picks, custom);
+  const session = buildSession(pos, picks, custom, sets);
   const isRest = session.key === "rest";
   const cardioOn = cardioDue(goal, pos);
 
@@ -1767,7 +1772,7 @@ export default function PPLHub() {
 
     persist("ppl-lifts", nextLifts);
     persist("ppl-days", nextDays);
-    persist("ppl-profile", { picks, pos: nextPos, goal, custom, theme });
+    persist("ppl-profile", { picks, pos: nextPos, goal, custom, theme, sets });
   };
 
   const saved = loadJSON("ppl-reports", {});
@@ -1946,7 +1951,8 @@ export default function PPLHub() {
                 ) : (
                   <>
                     <div style={{ fontFamily: DISPLAY, fontSize: 22, letterSpacing: "-0.03em", textTransform: "uppercase" }}>
-                      {session.items.length} exercises &middot; {session.items.length * SETS} sets
+                      {session.items.length} exercises &middot;{" "}
+                      {session.items.reduce((n, i) => n + i.sets, 0)} sets
                     </div>
                     <div
                       style={{
@@ -1956,8 +1962,13 @@ export default function PPLHub() {
                         marginTop: 4,
                       }}
                     >
-                      {SETS} sets each &middot; {REP_LOW}&ndash;{REP_HIGH} reps &middot; every set to
-                      failure
+                      {(() => {
+                        const counts = [...new Set(session.items.map((i) => i.sets))].sort();
+                        return counts.length === 1
+                          ? `${counts[0]} sets each`
+                          : `${counts[0]}\u2013${counts[counts.length - 1]} sets`;
+                      })()}{" "}
+                      &middot; {REP_LOW}&ndash;{REP_HIGH} reps &middot; every set to failure
                     </div>
                     <div style={{ fontSize: 15, color: MUTE, marginTop: 8, lineHeight: 1.4 }}>
                       {session.items.map((i) => i.name).join(", ")}
@@ -2493,17 +2504,66 @@ export default function PPLHub() {
                 <div key={g} style={{ marginBottom: 20 }}>
                   <div
                     style={{
-                      fontFamily: DISPLAY,
-                      fontSize: 24,
-                      textTransform: "uppercase",
-                      letterSpacing: "-0.03em",
-                      color: TEXT,
+                      display: "flex",
+                      alignItems: "flex-end",
+                      justifyContent: "space-between",
+                      gap: 10,
                       borderBottom: `1px solid ${RULE}`,
-                      paddingBottom: 4,
+                      paddingBottom: 6,
                       marginBottom: 8,
                     }}
                   >
-                    {GROUP_NAMES[g]}
+                    <div
+                      style={{
+                        fontFamily: DISPLAY,
+                        fontSize: 24,
+                        textTransform: "uppercase",
+                        letterSpacing: "-0.03em",
+                        color: TEXT,
+                        minWidth: 0,
+                      }}
+                    >
+                      {GROUP_NAMES[g]}
+                    </div>
+                    {/* sets per exercise for this muscle group */}
+                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                      {SET_CHOICES.map((n) => {
+                        const on = setsFor(g, sets) === n;
+                        return (
+                          <Btn
+                            key={n}
+                            plain
+                            aria={`${n} sets for ${GROUP_NAMES[g].toLowerCase()}`}
+                            onClick={() => saveProfile({ sets: { ...sets, [g]: n } })}
+                            style={{
+                              width: 40,
+                              padding: "7px 0",
+                              fontSize: 14,
+                              fontWeight: 800,
+                              borderRadius: 8,
+                              background: on ? PUSH_C : CARD,
+                              color: on ? ON_ACCENT : MUTE,
+                              border: `1px solid ${on ? PUSH_C : RULE}`,
+                            }}
+                          >
+                            {n}
+                          </Btn>
+                        );
+                      })}
+                      <div
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 800,
+                          letterSpacing: "0.08em",
+                          textTransform: "uppercase",
+                          color: MUTE,
+                          alignSelf: "center",
+                          marginLeft: 2,
+                        }}
+                      >
+                        sets
+                      </div>
+                    </div>
                   </div>
                   {listFor(g, custom).map((name) => {
                     const on = (picks[g] || []).includes(name);
