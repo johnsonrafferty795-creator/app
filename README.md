@@ -1,22 +1,23 @@
 # Workout
 
-Six offline, installable apps built from one repo. Vite + React, everything
+Seven offline, installable apps built from one repo. Vite + React, everything
 stored on the phone itself.
 
 | App | Lives at | What it does |
 | --- | --- | --- |
 | **Workout** | `/` | 2-week rotation, 3 days a week |
 | **PPL** | `/ppl/` | Push, Pull, Legs, Rest |
+| **Winter Arc** | `/winter/` | The same rotation, run as a winter arc |
 | **Dog Training** | `/dogs/` | Two dogs' daily training checklists |
 | **Weekly** | `/week/` | A task list that unticks itself every week |
 | **Golf Mobility** | `/golf/` | Mobility, pilates and rotation work for the swing |
 | **Bertie's Biscuits** | `/biscuit/` | An idle biscuit game |
 
-They build, install and cache separately — six home-screen icons, six stores
-of data, one deploy. `src/workout-app.jsx`, `src/ppl-app.jsx`,
-`src/dogs-app.jsx`, `src/weekly-app.jsx`, `src/golf-app.jsx` and
-`src/biscuit-app.jsx` are deliberately kept as independent files: none can
-break another. The game is the one with a second file — `src/biscuit-data.js`
+They build, install and cache separately — seven home-screen icons, seven
+stores of data, one deploy. `src/workout-app.jsx`, `src/ppl-app.jsx`,
+`src/winter-app.jsx`, `src/dogs-app.jsx`, `src/weekly-app.jsx`,
+`src/golf-app.jsx` and `src/biscuit-app.jsx` are deliberately kept as
+independent files: none can break another. The game is the one with a second file — `src/biscuit-data.js`
 holds its economy, and nothing else imports it.
 
 ## Workout
@@ -57,6 +58,11 @@ Everything lives in `localStorage` under three keys, wrapped by `src/storage.js`
 | `ppl-lifts`  | per-exercise set history, last 60 sets each         |
 | `ppl-weight` | one body-weight reading per day, for the graph      |
 | `ppl-reports`| frozen four-week summaries, one per closed block    |
+| `wa-profile` | Winter Arc: the same as `wk-profile`, plus which of its two looks is on |
+| `wa-days`    | Winter Arc: per-day habit flags                     |
+| `wa-lifts`   | Winter Arc: per-exercise set history, last 60 sets each |
+| `wa-weight`  | Winter Arc: one body-weight reading per day         |
+| `wa-reports` | Winter Arc: frozen four-week summaries              |
 | `tk-tasks`   | the weekly list: name, day, and whether it repeats   |
 | `tk-log`     | which tasks were ticked, filed under the week they belong to |
 | `tk-prefs`   | which day the week starts on                        |
@@ -116,9 +122,33 @@ The goal drives cardio only: **bulk** none, **cut** every day, **maintain**
 every training day (so it skips the rest day) — three days in four, about five
 a week.
 
+## Winter Arc
+
+The third app, at `/winter/`. The first tracker again — same two-week rotation,
+same session runner, same overload maths, same screens — kept for the months it
+is hardest to keep anything. It writes to its own keys (`wa-`), so a winter is
+counted on its own and nothing in it touches the year-round history next door.
+
+What is added is the arc itself, across the top of the front page: **1 November
+to the last day of February**, which day of it today is, and how many are left.
+Out of season it counts down to the next one instead. All of that is worked out
+from the date every time it is drawn — there is nothing to start, nothing to
+set and nothing stored, so it cannot get out of step with the calendar.
+
+Two looks, switched from the Plan tab: **Blackout** (bone white on black, the
+one the icon is cut from) and **Frostbite** (the same black, lit ice blue).
+Both set their display type in Anton — heavy, condensed and carried in the app
+rather than borrowed from the phone, since iOS has no Impact and falls back to
+an ordinary Helvetica that reads nothing like it.
+
+Because it is a copy and not a fork, a fix worth having in both has to be made
+in both: `src/winter-app.jsx` and `src/workout-app.jsx` are independent files,
+on purpose, and everything genuinely shared already lives in the modules under
+**Shared code** below.
+
 ## Dog Training
 
-The third app, at `/dogs/`. A daily checklist per dog, built for someone who
+The fourth app, at `/dogs/`. A daily checklist per dog, built for someone who
 wants to open it, see what is left, tap it and put the phone down.
 
 - **Today** — both dogs, how much of each list is done, tap through to either
@@ -136,27 +166,34 @@ settings screen.
 
 ## Icons
 
-`public/*.png`, `ppl/public/*.png`, `dogs/public/*.png`, `week/public/*.png`,
-`golf/public/*.png` and `biscuit/public/*.png` are generated with the standard
-library only — a red dumbbell for one app, a blue plate for the second, a white
-paw on green for the third, a pale calendar page with an orange tick for the
-fourth, a chalk flagstick and ball on fairway green for the fifth, and a
-chocolate-chip biscuit on dark cocoa for the sixth:
+`public/*.png`, `ppl/public/*.png`, `winter/public/*.png`, `dogs/public/*.png`,
+`week/public/*.png`, `golf/public/*.png` and `biscuit/public/*.png` are
+generated with the standard library only — a red dumbbell for one app, a blue
+plate for the second, a bone-white barbell on black for the third, a white paw
+on green for the fourth, a pale calendar page with an orange tick for the
+fifth, a chalk flagstick and ball on fairway green for the sixth, and a
+chocolate-chip biscuit on dark cocoa for the seventh:
 
 ```sh
 python3 tools/make-icons.py
 python3 tools/make-ppl-icons.py
+python3 tools/make-winter-icons.py
 python3 tools/make-dogs-icons.py
 python3 tools/make-weekly-icons.py
 python3 tools/make-golf-icons.py
 python3 tools/make-biscuit-icons.py
 ```
 
+The Winter Arc barbell is drawn from one description of half a bar — the plates
+are mirrored about the centre — and the same shape is set beside the wordmark
+inside the app, so the home screen and the front page agree.
+
 ## Backup
 
 Every app keeps everything on the one phone, so each has an **Export a backup**
-button — Plan tab in the PPL and golf apps, Exercises tab in the first, Week
-tab in the dog app, the menu in the weekly one, the Tin tab in the game. It writes a dated
+button — Plan tab in the PPL and golf apps, Exercises tab in the first and in
+Winter Arc, Week tab in the dog app, the menu in the weekly one, the Tin tab in
+the game. It writes a dated
 JSON file through the iOS share sheet, falling back to a download elsewhere.
 **Restore from a file** puts it back, after saying what the file holds and that
 the phone's current data is written over. A backup is stamped with the app it
@@ -165,7 +202,7 @@ other.
 
 ## Shared code
 
-Both trackers now sit on the same small layer, so a fix lands in both at once
+All three trackers now sit on the same small layer, so a fix lands in both at once
 rather than in whichever one was open: `tokens.js` (the CSS-variable palette),
 `theme.css` (the two themes and the gothic ornament), `dates.js`, `lifts.js`,
 `ui.jsx` (buttons, the typeable stepper), `charts.jsx` (the trend line and the
@@ -215,6 +252,21 @@ faint 5.4:1, gold 10.0:1 and green 9.9:1. Faint drops to 4.2:1 on a raised row,
 which is under AA, so it is never used there — raised rows take muted instead.
 Type on a gold fill is the dark ground, at 10.0:1.
 
+Winter Arc is the black one, and carries two looks switched from its Plan tab:
+**Blackout** (bone white on black, with one cold blue-grey step for a focus
+muscle group and the session's rule, and a muted green for a day that got done)
+and **Frostbite** (the same black lit ice blue, with a cold teal for done —
+mint would read as spring, which is the season it is not about). Both set their
+display type in Anton and keep everything under 17px on Helvetica, since Anton
+has one weight and nothing to give at label sizes. See `src/winter-theme.css`.
+
+Type on the ground is 18.0:1 in Blackout and 18.0:1 in Frostbite, muted 7.1:1
+and 7.9:1, the accent step 9.3:1 and 12.6:1; the weakest reading on either is
+Blackout's muted on a raised row, at 5.6:1. Type sitting on a fill goes black in
+both: the closest to the line is Blackout's steel at 6.5:1, and its red — unused
+by this app's screens, but kept honest — was lifted to 5.2:1 so it would carry
+type if it ever were.
+
 The golf app is the green one: a deep fairway ground, chalk type and bunker
 gold, with a colour per block — grass for the daily flexibility, gold for the
 pilates, sky for the swing work — so a block is known before it is read. Each
@@ -229,7 +281,7 @@ to read a number.
 
 ## Weekly
 
-The fourth app, at `/week/`. A task list where a week is the unit: put things
+The fifth app, at `/week/`. A task list where a week is the unit: put things
 on the days you mean to do them, and on the first morning of the next week the
 whole lot goes back to unticked on its own.
 
@@ -256,7 +308,7 @@ task works its week out from when it was written down.
 
 ## Golf Mobility
 
-The fifth app, at `/golf/`. A golf mobility and pilates plan — the printed
+The sixth app, at `/golf/`. A golf mobility and pilates plan — the printed
 sheet it came from, turned into something you work through rather than read.
 
 Three blocks, each its own colour, each with its own place in the week:
@@ -317,7 +369,7 @@ drawn from above otherwise reads as one lying on the floor.
 
 ## Bertie's Biscuits
 
-The sixth app, at `/biscuit/`. Bertie's, and an idle game — the only one here
+The seventh app, at `/biscuit/`. Bertie's, and an idle game — the only one here
 that is not about getting something done: tap a biscuit, then buy something
 that taps it for you, then buy something that buys those.
 

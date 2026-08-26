@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && APP=ppl vite build && APP=dogs vite build && APP=week vite build && APP=golf vite build && APP=biscuit vite build",
+    "build": "vite build && APP=ppl vite build && APP=winter vite build && APP=dogs vite build && APP=week vite build && APP=golf vite build && APP=biscuit vite build",
     "preview": "vite preview"
   },
   "dependencies": {
