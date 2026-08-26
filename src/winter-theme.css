@@ -42,6 +42,10 @@
      is where the last of the colour lives: a focus muscle group and the rule
      for the session are set in it, and bone on bone would not tell them from
      the rest. */
+  /* the ground under a set that is finished — black, with just enough of the
+     done-green in it to be seen without lighting the screen up */
+  --done: #131d18;
+
   --chart: #d9dce1;
   --chart-ok: #8fbfa6;
   --good-text: #9fcbb4;
@@ -79,6 +83,8 @@
   --win: #4fb8a0;
   --warn: #fb7185;
   --on-accent: #05080c;
+
+  --done: #0a1f1c;
 
   --chart: #7dd3fc;
   --chart-ok: #6fd8bd;

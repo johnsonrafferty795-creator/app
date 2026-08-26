@@ -7,7 +7,7 @@ stored on the phone itself.
 | --- | --- | --- |
 | **Workout** | `/` | 2-week rotation, 3 days a week |
 | **PPL** | `/ppl/` | Push, Pull, Legs, Rest |
-| **Winter Arc** | `/winter/` | The same rotation, run as a winter arc |
+| **Winter Arc** | `/winter/` | A six-day bulk, run as a winter arc |
 | **Dog Training** | `/dogs/` | Two dogs' daily training checklists |
 | **Weekly** | `/week/` | A task list that unticks itself every week |
 | **Golf Mobility** | `/golf/` | Mobility, pilates and rotation work for the swing |
@@ -58,8 +58,8 @@ Everything lives in `localStorage` under three keys, wrapped by `src/storage.js`
 | `ppl-lifts`  | per-exercise set history, last 60 sets each         |
 | `ppl-weight` | one body-weight reading per day, for the graph      |
 | `ppl-reports`| frozen four-week summaries, one per closed block    |
-| `wa-profile` | Winter Arc: the same as `wk-profile`, plus which of its two looks is on |
-| `wa-days`    | Winter Arc: per-day habit flags                     |
+| `wa-profile` | Winter Arc: chosen exercises, place in the six-day cycle, and which of its two looks is on |
+| `wa-days`    | Winter Arc: per-day flags (workout, eat)            |
 | `wa-lifts`   | Winter Arc: per-exercise set history, last 60 sets each |
 | `wa-weight`  | Winter Arc: one body-weight reading per day         |
 | `wa-reports` | Winter Arc: frozen four-week summaries              |
@@ -124,16 +124,44 @@ a week.
 
 ## Winter Arc
 
-The third app, at `/winter/`. The first tracker again — same two-week rotation,
-same session runner, same overload maths, same screens — kept for the months it
-is hardest to keep anything. It writes to its own keys (`wa-`), so a winter is
-counted on its own and nothing in it touches the year-round history next door.
+The third app, at `/winter/`. The first tracker's session runner, overload
+maths and screens on a plan built for one thing: a six-day bulk, kept over the
+months it is hardest to keep anything. It writes to its own keys (`wa-`), so a
+winter is counted on its own and nothing in it touches the year-round history
+next door.
 
-What is added is the arc itself, across the top of the front page: **1 November
-to the last day of February**, which day of it today is, and how many are left.
-Out of season it counts down to the next one instead. All of that is worked out
-from the date every time it is drawn — there is nothing to start, nothing to
-set and nothing stored, so it cannot get out of step with the calendar.
+The cycle is six days, then round again:
+
+| Day | | Groups |
+| --- | --- | --- |
+| 1 | Push | chest, shoulders, triceps |
+| 2 | Pull | back, rear delts, biceps |
+| 3 | **Focus day** | chest and arms |
+| 4 | Push | chest, shoulders, triceps |
+| 5 | Pull | back, rear delts, biceps |
+| 6 | Legs | legs, abs |
+
+Every exercise ticked for the day's groups is in the session, three sets each,
+to failure — there is no light day to build around, because there is no cardio
+at all and nothing to save anything for. Abs ride with legs rather than with
+every session. Nothing is dated: the cycle only turns when a session is
+finished, so a day off costs the day and not your place in it.
+
+The food side is one toggle that does not change all winter: **ate big**. There
+are two habits on the Today screen and not four, and the four-week report
+counts sessions out of 24 and days eating big out of 28.
+
+Because the split leans on push twice a cycle and gives legs a single day, the
+exercise library was widened where that opens a gap — more triceps and
+shoulders, `Barbell rows` and `Pull-ups` on back, `Leg press` and
+`Romanian deadlift` on legs. Anything else still goes on from the phone.
+
+What is added on top is the arc itself, across the top of the front page:
+**1 November to the last day of February**, which day of it today is, and how
+many are left. Out of season it counts down to the next one instead. All of
+that is worked out from the date every time it is drawn — there is nothing to
+start, nothing to set and nothing stored, so it cannot get out of step with the
+calendar.
 
 Two looks, switched from the Plan tab: **Blackout** (bone white on black, the
 one the icon is cut from) and **Frostbite** (the same black, lit ice blue).
@@ -141,10 +169,9 @@ Both set their display type in Anton — heavy, condensed and carried in the app
 rather than borrowed from the phone, since iOS has no Impact and falls back to
 an ordinary Helvetica that reads nothing like it.
 
-Because it is a copy and not a fork, a fix worth having in both has to be made
-in both: `src/winter-app.jsx` and `src/workout-app.jsx` are independent files,
-on purpose, and everything genuinely shared already lives in the modules under
-**Shared code** below.
+`src/winter-app.jsx` is an independent file, like every other app here, so a
+fix worth having in more than one has to be made in more than one. Everything
+genuinely shared already lives in the modules under **Shared code** below.
 
 ## Dog Training
 

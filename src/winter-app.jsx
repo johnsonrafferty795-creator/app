@@ -1,13 +1,17 @@
 /* Winter Arc — the workout tracker run as a winter arc.
  *
- * The same plan, the same session runner and the same overload maths as the
- * original tracker: this is the one you keep over the cold months, under its
- * own keys (wa-) so a winter is counted on its own and nothing here touches
- * the year-round history next door.
+ * The same session runner and the same overload maths as the original
+ * tracker, under its own keys (wa-) so a winter is counted on its own and
+ * nothing here touches the year-round history next door.
  *
- * What is different is the face it puts on: black, heavy and cold, with the
- * arc itself on the front — which day of it you are on, and how many are
- * left.
+ * The plan is not the same. This one is a six-day bulk: push, pull, a focus
+ * day for chest and arms, then push, pull, legs. Every session is heavy and
+ * every exercise goes to failure — there is no light day, because there is no
+ * cardio at all and nothing to save anything for. The food side is one toggle
+ * that stays the same all winter: eat big.
+ *
+ * The face it puts on is black, heavy and cold, with the arc itself on the
+ * front — which day of it you are on, and how many are left.
  */
 import { useEffect, useState } from "react";
 
@@ -50,7 +54,7 @@ import {
 /* ============================ constants ============================ */
 
 /* Two winter looks, switched from the Plan tab and painted by winter-theme.css.
-   PUSH is the hard-day accent, HOLD the lighter one. */
+   PUSH is the bright accent, kept for the focus day; HOLD carries the rest. */
 const THEMES = {
   blackout: { label: "Blackout", note: "Black, bone and cold steel." },
   frostbite: { label: "Frostbite", note: "Black and ice, lit like a cold morning." },
@@ -59,15 +63,23 @@ const THEMES = {
 const PUSH = PUSH_C;
 const HOLD = PULL_C;
 
-/* what a four-week block should hold, on three sessions a week */
-const HABITS = ["workout", "light", "hard", "clean"];
-const PER_BLOCK = { workout: 12, clean: BLOCK, light: 12, hard: 4 };
+/* What a four-week block should hold. Six days a week is the plan, so a block
+   is 24 sessions; the surplus is meant to be every day of it, cardio none of
+   them — which is why there are two habits here and not four. */
+const HABITS = ["workout", "eat"];
+const PER_BLOCK = { workout: 24, eat: BLOCK };
+const PER_WEEK = 6;
 
+/* The original tracker's library, with the gaps this split opens filled in:
+   push comes round twice a cycle and one rope pushdown will not carry it, and
+   there is only ever the one leg day. Anything else goes on from the phone. */
 const LIBRARY = {
-  chest: ["Bench press", "Incline bench press", "Cable flys"],
+  chest: ["Bench press", "Incline bench press", "Dumbbell bench press", "Cable flys"],
   back: [
     "Lat pulldowns",
     "1-arm lat pulldowns",
+    "Barbell rows",
+    "Pull-ups",
     "Machine rows",
     "1-arm dumbbell rows",
     "Barbell shrugs",
@@ -81,11 +93,19 @@ const LIBRARY = {
     "EZ bar curls",
     "Cable curls",
   ],
-  shoulders: ["Lateral raises", "Shoulder press"],
-  triceps: ["Tricep rope pushdowns"],
+  shoulders: ["Lateral raises", "Shoulder press", "Arnold press", "Cable lateral raises"],
+  triceps: [
+    "Tricep rope pushdowns",
+    "Skull crushers",
+    "Close-grip bench press",
+    "Overhead cable extension",
+    "Dips",
+  ],
   rearDelts: ["Face pulls", "Cable pulls"],
   legs: [
     "Squat",
+    "Leg press",
+    "Romanian deadlift",
     "Bulgarian split squat",
     "Leg extension",
     "Seated leg curl",
@@ -106,41 +126,37 @@ const GROUP_NAMES = {
   abs: "Abs",
 };
 
-const FOCUS = ["chest", "back", "biceps"];
+/* the groups the focus day is built from — chest and arms */
+const FOCUS = ["chest", "biceps", "triceps"];
 
 const DEFAULT_PICKS = {
   chest: ["Bench press", "Incline bench press"],
   back: ["Lat pulldowns", "Machine rows"],
   biceps: ["African curls", "Incline curls"],
   shoulders: ["Lateral raises", "Shoulder press"],
-  triceps: ["Tricep rope pushdowns"],
+  triceps: ["Tricep rope pushdowns", "Skull crushers"],
   rearDelts: ["Face pulls"],
   legs: ["Squat", "Leg extension", "Seated leg curl"],
   abs: ["Cable crunches", "Hanging leg raises"],
 };
 
-const FULL_BODY = [
-  "chest",
-  "back",
-  "biceps",
-  "shoulders",
-  "triceps",
-  "rearDelts",
-  "legs",
-];
+const PUSH_GROUPS = ["chest", "shoulders", "triceps"];
+const PULL_GROUPS = ["back", "rearDelts", "biceps"];
 
+/* Six days, then round again. Nothing here is dated: the cycle only moves when
+   a session is finished, so a day off costs you the day and not your place. */
 const PLAN = {
-  1: {
-    1: { label: "Focus day", groups: ["chest", "biceps"] },
-    2: { label: "Maintenance", groups: ["chest", "triceps", "shoulders"] },
-    3: { label: "Focus day", groups: ["back", "rearDelts", "biceps"] },
-  },
-  2: {
-    1: { label: "Full body", groups: FULL_BODY },
-    2: { label: "Leg day", groups: ["legs"], week1Rules: true },
-    3: { label: "Full body", groups: FULL_BODY },
-  },
+  1: { label: "Push", groups: PUSH_GROUPS },
+  2: { label: "Pull", groups: PULL_GROUPS },
+  3: { label: "Focus day", groups: FOCUS, focus: true },
+  4: { label: "Push", groups: PUSH_GROUPS },
+  5: { label: "Pull", groups: PULL_GROUPS },
+  /* abs ride with legs rather than with every session: six days of them is
+     how a bulk turns into a sore back */
+  6: { label: "Legs", groups: ["legs", "abs"] },
 };
+
+const CYCLE = 6;
 
 /* ============================ helpers ============================ */
 
@@ -182,68 +198,31 @@ const arcStatus = (iso) => {
 /* The built-in list for a muscle group plus anything added on the phone. */
 const listFor = (g, custom) => [...LIBRARY[g], ...((custom && custom[g]) || [])];
 
-/* Least recently trained first, so the full-body days work round every
-   exercise on the list instead of always reaching for the same one. Anything
-   never logged comes first; ties keep list order. */
-function byStalest(names, lifts) {
-  const lastDone = (n) => {
-    const h = lifts && lifts[n];
-    return h && h.length ? h[h.length - 1].d : "";
-  };
-  return names
-    .map((name, i) => ({ name, i }))
-    .sort(
-      (a, b) =>
-        lastDone(a.name).localeCompare(lastDone(b.name)) || a.i - b.i
-    )
-    .map((x) => x.name);
-}
-
-/* Two different days, two different rules.
- *
- * Hard days — all of week 1, plus the leg day — are everything ticked for the
- * muscle group, three sets each, to failure.
- *
- * Full-body days are the light ones: one exercise per muscle group, two for
- * chest, back and biceps, a single set each. That keeps a full-body day at the
- * volume it was designed for however many exercises are ticked.
- */
-function buildSession(week, day, picks, custom, lifts) {
-  const spec = PLAN[week][day];
-  const hardRules = week === 1 || spec.week1Rules;
-  const groups = [...spec.groups, "abs"];
+/* One rule, every day of the cycle: everything ticked for the day's muscle
+   groups, three sets each, to failure. The original tracker had a light day to
+   protect; this one does not, so there is nothing to build around. */
+function buildSession(day, picks, custom, lifts) {
+  const spec = PLAN[day];
 
   const items = [];
-  groups.forEach((g) => {
-    const chosen = listFor(g, custom).filter((n) => (picks[g] || []).includes(n));
-    if (!chosen.length) return;
-
-    if (hardRules) {
-      chosen.forEach((name) => items.push({ group: g, name, sets: 3 }));
-      return;
-    }
-
-    const slots = FOCUS.includes(g) ? 2 : 1;
-    const picked = byStalest(chosen, lifts).slice(0, slots);
-    /* only one ticked where two were wanted: it carries both sets itself */
-    const sets = Math.ceil(slots / picked.length);
-    picked.forEach((name) => items.push({ group: g, name, sets }));
+  spec.groups.forEach((g) => {
+    listFor(g, custom)
+      .filter((n) => (picks[g] || []).includes(n))
+      .forEach((name) => items.push({ group: g, name, sets: 3 }));
   });
 
   return {
-    week,
     day,
     label: spec.label,
-    toFailure: hardRules,
-    accent: hardRules ? PUSH : HOLD,
+    /* the focus day is the one that is not push, pull or legs, so it is the
+       one that gets the bright accent */
+    accent: spec.focus ? PUSH : HOLD,
     items,
   };
 }
 
-const advance = (pos) =>
-  pos.day < 3
-    ? { week: pos.week, day: pos.day + 1 }
-    : { week: pos.week === 1 ? 2 : 1, day: 1 };
+/* the cycle only turns on a finished session, never on the calendar */
+const advance = (pos) => ({ day: pos.day < CYCLE ? pos.day + 1 : 1 });
 
 /* progressive overload rule: add a rep until 12, then add 2.5kg and drop to 8 */
 const nextTarget = (best) => {
@@ -379,7 +358,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
               textTransform: "uppercase",
             }}
           >
-            Week {session.week} &middot; Day {session.day}
+            {session.label} &middot; Day {session.day} of {CYCLE}
           </div>
           <Btn
             onClick={onQuit}
@@ -403,7 +382,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
             letterSpacing: "-0.02em",
           }}
         >
-          {session.toFailure ? "To true failure" : "Stop close to failure"}
+          To true failure
         </div>
       </div>
 
@@ -481,7 +460,8 @@ function Session({ session, lifts, onFinish, onQuit }) {
               borderRadius: 14,
               padding: "10px 12px 12px",
               marginBottom: 10,
-              background: s.done ? "#12261F" : CARD,
+              /* the only ground that is not a token elsewhere: a finished set */
+              background: s.done ? "var(--done)" : CARD,
             }}
           >
             <div
@@ -966,7 +946,7 @@ export default function WinterArc() {
   const [picks, setPicks] = useState(profile.picks || DEFAULT_PICKS);
   const [custom, setCustom] = useState(profile.custom || {});
   const [theme, setTheme] = useState(profile.theme || "blackout");
-  const [pos, setPos] = useState(profile.pos || { week: 1, day: 1 });
+  const [pos, setPos] = useState(profile.pos || { day: 1 });
   const [days, setDays] = useState(() => loadJSON("wa-days", {}));
   const [lifts, setLifts] = useState(() => loadJSON("wa-lifts", {}));
   const [weights, setWeights] = useState(() => loadJSON("wa-weight", {}));
@@ -1029,7 +1009,7 @@ export default function WinterArc() {
     persist("wa-days", next);
   };
 
-  const session = buildSession(pos.week, pos.day, picks, custom, lifts);
+  const session = buildSession(pos.day, picks, custom, lifts);
 
   const finishSession = (result) => {
     const nextLifts = { ...lifts };
@@ -1054,9 +1034,7 @@ export default function WinterArc() {
 
   const reportMetrics = [
     { key: "workout", label: "Sessions", target: PER_BLOCK.workout, one: "session", many: "sessions" },
-    { key: "clean", label: "Ate clean", target: PER_BLOCK.clean, one: "day eating clean", many: "days eating clean" },
-    { key: "light", label: "Light", target: PER_BLOCK.light, one: "light cardio day", many: "light cardio days" },
-    { key: "hard", label: "Hard", target: PER_BLOCK.hard, one: "hard cardio day", many: "hard cardio days" },
+    { key: "eat", label: "Ate big", target: PER_BLOCK.eat, one: "day eating big", many: "days eating big" },
   ];
   const blocks = buildBlocks(days, lifts, weights, today(), HABITS);
   const shownBlocks = (() => {
@@ -1131,8 +1109,8 @@ export default function WinterArc() {
   const daysSince = lastWorkout ? dayNum(t) - dayNum(lastWorkout) : null;
   const cutoff = shiftDay(t, -27);
   const last28 = workoutDays.filter((d) => d >= cutoff).length;
-  /* three sessions a week is the plan, so a three-day gap is a real slip */
-  const slipping = daysSince !== null && daysSince >= 3;
+  /* six sessions a week is the plan, so two days off is already a slip */
+  const slipping = daysSince !== null && daysSince >= 2;
   const recency =
     daysSince === 0
       ? "Done today"
@@ -1233,9 +1211,7 @@ export default function WinterArc() {
                 marginTop: 6,
               }}
             >
-              Week {session.week}
-              <br />
-              Day {session.day}
+              {session.label}
             </div>
             <div
               style={{
@@ -1251,7 +1227,7 @@ export default function WinterArc() {
                 letterSpacing: "-0.02em",
               }}
             >
-              {session.label}
+              Day {session.day} of {CYCLE}
             </div>
           </div>
 
@@ -1329,9 +1305,7 @@ export default function WinterArc() {
                 marginTop: 8,
               }}
             >
-              {session.toFailure
-                ? "3 sets · 8–12 reps · to true failure"
-                : "1 exercise per group, 2 for chest/back/biceps · 1 set each · stop close to failure"}
+              3 sets &middot; 8&ndash;12 reps &middot; to true failure
             </div>
 
             {session.items.length === 0 ? (
@@ -1403,10 +1377,8 @@ export default function WinterArc() {
               </div>
 
               {[
-                ["workout", "Worked out"],
-                ["light", "Light cardio"],
-                ["hard", "Hard cardio"],
-                ["clean", "Ate clean"],
+                ["workout", "Trained"],
+                ["eat", "Ate big"],
               ].map(([k, label]) => (
                 <Btn
                   key={k}
@@ -1489,10 +1461,8 @@ export default function WinterArc() {
 
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               {[
-                ["workout", "Workouts", 3],
-                ["light", "Light cardio", 3],
-                ["hard", "Hard cardio", 1],
-                ["clean", "Ate clean", 7],
+                ["workout", "Sessions", PER_WEEK],
+                ["eat", "Ate big", 7],
               ].map(([k, label, target]) => {
                 const c = count(k);
                 const hit = c >= target;
@@ -1529,7 +1499,7 @@ export default function WinterArc() {
 
             <div style={{ marginTop: 22 }}>
               <SectionLabel style={{ marginBottom: 4 }}>Sessions a week</SectionLabel>
-              <WeekBars weeks={weekBars} target={3} />
+              <WeekBars weeks={weekBars} target={PER_WEEK} />
             </div>
 
             <div style={{ marginTop: 20 }}>
@@ -1547,9 +1517,7 @@ export default function WinterArc() {
               </div>
               {[
                 ["workout", "Gym"],
-                ["light", "Light"],
-                ["hard", "Hard"],
-                ["clean", "Food"],
+                ["eat", "Food"],
               ].map(([k, label]) => (
                 <div
                   key={k}
@@ -1588,8 +1556,8 @@ export default function WinterArc() {
               ))}
               <div style={{ fontSize: 12, color: MUTE, marginTop: 4 }}>
                 Oldest on the left, today on the right. Green is a day it got
-                done — the plan is three sessions a week, so most days are meant
-                to be blank.
+                done — the plan is six sessions a week and eating big every day
+                of it, so a gap is meant to be the exception.
               </div>
             </div>
 
@@ -1680,6 +1648,11 @@ export default function WinterArc() {
             </div>
             <div style={{ fontSize: 15, fontWeight: 700, marginTop: 6 }}>
               Tap the ones you use, or add your own. Every session is built from these.
+            </div>
+            <div style={{ fontSize: 15, marginTop: 10, lineHeight: 1.4, color: ACCENT_TEXT }}>
+              Push &middot; Pull &middot; Focus &middot; Push &middot; Pull &middot; Legs, then
+              round again. Six days, everything to failure, no cardio, eating big the
+              whole way.
             </div>
           </div>
 
@@ -1804,30 +1777,29 @@ export default function WinterArc() {
                   marginBottom: 8,
                 }}
               >
-                Where am I in the rotation?
+                Where am I in the cycle?
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {[1, 2].map((w) =>
-                  [1, 2, 3].map((d) => {
-                    const on = pos.week === w && pos.day === d;
-                    return (
-                      <Btn
-                        key={`${w}-${d}`}
-                        onClick={() => saveProfile(picks, { week: w, day: d })}
-                        style={{
-                          flex: "1 0 30%",
-                          padding: "12px 6px",
-                          fontSize: 15,
-                          background: on ? (w === 1 ? PUSH : HOLD) : CARD,
-                          color: on ? ON_ACCENT : TEXT,
-                          border: `1px solid ${on ? (w === 1 ? PUSH : HOLD) : RULE}`,
-                        }}
-                      >
-                        W{w} D{d}
-                      </Btn>
-                    );
-                  })
-                )}
+                {Object.keys(PLAN).map(Number).map((d) => {
+                  const on = pos.day === d;
+                  const accent = PLAN[d].focus ? PUSH : HOLD;
+                  return (
+                    <Btn
+                      key={d}
+                      onClick={() => saveProfile(picks, { day: d })}
+                      style={{
+                        flex: "1 0 30%",
+                        padding: "12px 6px",
+                        fontSize: 15,
+                        background: on ? accent : CARD,
+                        color: on ? ON_ACCENT : TEXT,
+                        border: `1px solid ${on ? accent : RULE}`,
+                      }}
+                    >
+                      {d}. {PLAN[d].label}
+                    </Btn>
+                  );
+                })}
               </div>
             </div>
           </div>
