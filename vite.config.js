@@ -2,9 +2,10 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
-/* Six apps, one site, one deploy:
+/* Seven apps, one site, one deploy:
  *   APP unset    → the original tracker at BASE_PATH        (…/app/)
  *   APP=ppl      → the push/pull/legs tracker one level down (…/app/ppl/)
+ *   APP=winter   → the same tracker run as a winter arc         (…/app/winter/)
  *   APP=dogs     → the dog training tracker                  (…/app/dogs/)
  *   APP=week     → the weekly task list                      (…/app/week/)
  *   APP=golf     → the golf mobility and pilates plan        (…/app/golf/)
@@ -33,6 +34,13 @@ const META = {
     description: "Push pull legs, progressive overload, and body weight.",
     background: "#0B0C0F",
     theme: "#0B0C0F",
+  },
+  winter: {
+    name: "Winter Arc",
+    short: "Winter Arc",
+    description: "The winter arc: sessions, progressive overload and daily habits, counted to the last day of February.",
+    background: "#08090A",
+    theme: "#08090A",
   },
   dogs: {
     name: "Dog Training",

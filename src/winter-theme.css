@@ -1,0 +1,132 @@
+/* Winter Arc's two looks. The app itself only ever names CSS variables (see
+   tokens.js), so a theme is this file and nothing else: flip data-theme on the
+   root and the whole app repaints.
+
+   Both are black. Blackout is the one the icon is cut from — bone white on
+   black, no colour anywhere it is not carrying information. Frostbite is the
+   same app at first light: the same black, lit ice blue. */
+
+@font-face {
+  font-family: "Anton";
+  /* one weight is all there is — it is already as heavy as it goes */
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("./fonts/anton.woff2") format("woff2");
+}
+
+:root,
+:root[data-theme="blackout"] {
+  color-scheme: dark;
+
+  --bg: #08090a;
+  --ink: #0d0e10;
+  --card: #141517;
+  --wash: #1a1c1f;
+  --raised: #212327;
+  --rule: #2f3237;
+  --mute: #969ba3;
+  --text: #f2f3f5;
+  --grid: #26282d;
+
+  /* bone and steel: bright fills, so type sitting on one goes black */
+  --push: #e9eaee;
+  --pull: #8d949e;
+  --legs: #6b727c;
+  --rest: #4a4f57;
+  --win: #8fbfa6;
+  --warn: #dc5548;
+  --on-accent: #08090a;
+
+  /* the steps that have to carry as type on the black ground. The accent one
+     is where the last of the colour lives: a focus muscle group and the rule
+     for the session are set in it, and bone on bone would not tell them from
+     the rest. */
+  /* the ground under a set that is finished — black, with just enough of the
+     done-green in it to be seen without lighting the screen up */
+  --done: #131d18;
+
+  --chart: #d9dce1;
+  --chart-ok: #8fbfa6;
+  --good-text: #9fcbb4;
+  --accent-text: #9db4c8;
+
+  /* heavy and condensed, the way a plate is stamped. It is carried in the
+     app rather than borrowed from the phone: iOS has no Impact, and the
+     fallback there is an ordinary Helvetica that reads nothing like it. */
+  --display: "Anton", Impact, "Arial Narrow Bold", "Arial Black",
+    "Helvetica Neue", sans-serif;
+  --body: "Helvetica Neue", Arial, Helvetica, sans-serif;
+  --figures: "Helvetica Neue", Arial, Helvetica, sans-serif;
+  --caret: #e9eaee;
+}
+
+:root[data-theme="frostbite"] {
+  color-scheme: dark;
+
+  --bg: #05080c;
+  --ink: #0a0f16;
+  --card: #0f151e;
+  --wash: #141c27;
+  --raised: #1b2532;
+  --rule: #26313f;
+  --mute: #91a5ba;
+  --text: #eaf4ff;
+  --grid: #1e2836;
+
+  /* ice, and one cold green for a day that got done — mint would read as
+     spring, which is the season this app is not about */
+  --push: #7dd3fc;
+  --pull: #38bdf8;
+  --legs: #a5b4fc;
+  --rest: #64748b;
+  --win: #4fb8a0;
+  --warn: #fb7185;
+  --on-accent: #05080c;
+
+  --done: #0a1f1c;
+
+  --chart: #7dd3fc;
+  --chart-ok: #6fd8bd;
+  --good-text: #6fd8bd;
+  --accent-text: #93d5fb;
+
+  --display: "Anton", Impact, "Arial Narrow Bold", "Arial Black",
+    "Helvetica Neue", sans-serif;
+  --body: "Helvetica Neue", Arial, Helvetica, sans-serif;
+  --figures: "Helvetica Neue", Arial, Helvetica, sans-serif;
+  --caret: #7dd3fc;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--body);
+}
+
+button:focus-visible {
+  outline: 3px solid var(--chart);
+  outline-offset: 2px;
+}
+
+input {
+  color: var(--text);
+  caret-color: var(--caret);
+  font-family: inherit;
+}
+
+input::placeholder {
+  color: var(--mute);
+  opacity: 0.85;
+}
+
+/* Anton has one weight and a very short descender: it is only ever asked to do
+   what it is good at — short lines, set large and upper case. Everything
+   smaller is the body face, which is why .orn panels and every label below
+   17px stay on Helvetica. */
+
+/* The shared panels ask for .orn. Neither winter look ornaments them — the
+   rule around a panel is the whole decoration. */
+.orn {
+  position: relative;
+}
