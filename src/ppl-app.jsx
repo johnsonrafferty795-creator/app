@@ -128,6 +128,14 @@ const setsFor = (g, sets) => (sets && sets[g]) || DEFAULT_SETS;
 const REP_LOW = 6;
 const REP_HIGH = 12;
 
+/* How much weight a muscle group adds once the top of the rep range is reached.
+   A dumbbell curl and a leg press do not move up by the same amount, so each
+   group carries its own step. Anything unset stays at 2.5kg, which is what
+   every exercise used before this was a choice. */
+const STEP_CHOICES = [1.25, 2.5, 5, 10];
+const DEFAULT_STEP = 2.5;
+const stepFor = (g, steps) => (steps && steps[g]) || DEFAULT_STEP;
+
 /* days: how many cardio days a seven-day stretch should hold, for the weekly
    tile. perBlock: the same over a 28-day report block — three training days in
    every four is 21, not 20, so it is spelled out rather than multiplied. */
@@ -152,30 +160,61 @@ const cardioDue = (goal, pos) =>
 /* The built-in list for a muscle group plus anything added on the phone. */
 const listFor = (g, custom) => [...LIBRARY[g], ...((custom && custom[g]) || [])];
 
+/* which muscle group an exercise belongs to, for the screens that only know a
+   name - the overload step is a property of the group, not the movement */
+const groupOf = (name, custom) =>
+  Object.keys(LIBRARY).find((g) => listFor(g, custom).includes(name));
+
 /* Every exercise ticked for a muscle group is in the session — not one of them.
    List order, so the session doesn't reshuffle when a choice is toggled. */
-function buildSession(pos, picks, custom, sets) {
+function buildSession(pos, picks, custom, sets, steps, order) {
   const spec = CYCLE[pos - 1];
   const items = [];
   spec.groups.forEach((g) => {
     const chosen = picks[g] || [];
     listFor(g, custom).forEach((name) => {
       if (chosen.includes(name))
-        items.push({ group: g, name, sets: setsFor(g, sets) });
+        items.push({
+          group: g,
+          name,
+          sets: setsFor(g, sets),
+          step: stepFor(g, steps),
+        });
     });
   });
-  return { pos, key: spec.key, label: spec.label, accent: spec.color, items };
+  return {
+    pos,
+    key: spec.key,
+    label: spec.label,
+    accent: spec.color,
+    items: inOrder(items, order && order[spec.key]),
+  };
+}
+
+/* A saved running order for this day, if there is one. Anything the order does
+   not name - newly ticked, or added since - keeps its place at the end in
+   library order, rather than disappearing or jumping to the front. */
+function inOrder(items, names) {
+  if (!names || !names.length) return items;
+  const rank = new Map(names.map((n, i) => [n, i]));
+  return [...items].sort((a, b) => {
+    const ra = rank.has(a.name) ? rank.get(a.name) : Infinity;
+    const rb = rank.has(b.name) ? rank.get(b.name) : Infinity;
+    return ra === rb ? 0 : ra - rb;
+  });
 }
 
 const advance = (pos) => (pos % CYCLE_LEN) + 1;
 
-/* progressive overload: add a rep to the top of the range, then add 2.5kg and
-   start again at the bottom of it */
-const nextTarget = (best) => {
+/* progressive overload: add a rep to the top of the range, then add the muscle
+   group's own step and start again at the bottom of it */
+const nextTarget = (best, step = DEFAULT_STEP) => {
   if (!best) return null;
   return best.r < REP_HIGH
     ? { w: best.w, r: best.r + 1 }
-    : { w: +(best.w + 2.5).toFixed(1), r: REP_LOW };
+    /* two places, not one: a 1.25kg step off 10kg is 11.25, and rounding it to
+       11.3 would quietly hand back a quarter kilo every time it came round */
+    : { w: +(best.w + step).toFixed(2), r: REP_LOW };
 };
 
 
@@ -185,7 +224,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
   const [idx, setIdx] = useState(0);
   const [entries, setEntries] = useState(() =>
     session.items.map((it) => {
-      const tgt = nextTarget(bestOf(lifts[it.name]));
+      const tgt = nextTarget(bestOf(lifts[it.name]), it.step);
       return Array.from({ length: it.sets }, () => ({
         w: tgt ? tgt.w : 20,
         r: tgt ? tgt.r : 10,
@@ -197,7 +236,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
   const item = session.items[idx];
   const name = item.name;
   const last = bestOf(lifts[name]);
-  const target = nextTarget(last);
+  const target = nextTarget(last, item.step);
   const sets = entries[idx];
 
   const setField = (si, field, val) =>
@@ -410,12 +449,12 @@ function Session({ session, lifts, onFinish, onQuit }) {
 
 /* ============================ overload detail ============================ */
 
-function ExerciseDetail({ name, hist, onBack }) {
+function ExerciseDetail({ name, hist, step = DEFAULT_STEP, onBack }) {
   const [picked, setPicked] = useState(null);
   const sessions = bestPerDay(hist);
   const first = sessions[0];
   const best = bestOf(hist);
-  const target = nextTarget(best);
+  const target = nextTarget(best, step);
   const recent = sessions.slice(-12).reverse();
   const maxVol = Math.max(...recent.map((s) => s.w * s.r), 1);
   const gain = first && best ? +(best.w - first.w).toFixed(1) : 0;
@@ -482,8 +521,8 @@ function ExerciseDetail({ name, hist, onBack }) {
             {target ? `${target.w}kg × ${target.r}` : "—"}
           </div>
           <div style={{ fontSize: 14, fontWeight: 700, marginTop: 4 }}>
-            Add a rep each time. At {REP_HIGH} reps, add 2.5kg and drop back to{" "}
-            {REP_LOW}.
+            Add a rep each time. At {REP_HIGH} reps, add {step}kg and drop back
+            to {REP_LOW}.
           </div>
         </div>
 
@@ -852,11 +891,14 @@ export default function PPLHub() {
   const [saveError, setSaveError] = useState(false);
   const [picked, setPicked] = useState(null);
   const [report, setReport] = useState(false);
+  const [ordering, setOrdering] = useState(false);
 
   const profile = loadJSON("ppl-profile", {});
   const [picks, setPicks] = useState(profile.picks || DEFAULT_PICKS);
   const [custom, setCustom] = useState(profile.custom || {});
   const [sets, setSets] = useState(profile.sets || {});
+  const [steps, setSteps] = useState(profile.steps || {});
+  const [order, setOrder] = useState(profile.order || {});
   /* positions 5-7 exist only in the old seven-day rotation; fold them back in */
   const [pos, setPos] = useState(((profile.pos || 1) - 1) % CYCLE_LEN + 1);
   const [goal, setGoal] = useState(profile.goal || "maintain");
@@ -911,12 +953,14 @@ export default function PPLHub() {
   };
 
   const saveProfile = (next) => {
-    const merged = { picks, pos, goal, custom, theme, sets, ...next };
+    const merged = { picks, pos, goal, custom, theme, sets, steps, order, ...next };
     if (next.picks) setPicks(next.picks);
     if (next.pos) setPos(next.pos);
     if (next.goal) setGoal(next.goal);
     if (next.custom) setCustom(next.custom);
     if (next.sets) setSets(next.sets);
+    if (next.steps) setSteps(next.steps);
+    if (next.order) setOrder(next.order);
     if (next.theme) setTheme(next.theme);
     persist("ppl-profile", merged);
   };
@@ -941,9 +985,26 @@ export default function PPLHub() {
 
   const t = today();
   const flags = days[t] || {};
-  const session = buildSession(pos, picks, custom, sets);
+  const session = buildSession(pos, picks, custom, sets, steps, order);
   const isRest = session.key === "rest";
   const cardioOn = cardioDue(goal, pos);
+
+  /* The running order is saved per day type, so a push day keeps the order set
+     on the last one. Swapping neighbours keeps every name in the list, which
+     dragging on a small screen does not reliably do. */
+  const moveExercise = (i, d) => {
+    const names = session.items.map((it) => it.name);
+    const j = i + d;
+    if (j < 0 || j >= names.length) return;
+    [names[i], names[j]] = [names[j], names[i]];
+    saveProfile({ order: { ...order, [session.key]: names } });
+  };
+
+  const resetOrder = () => {
+    const next = { ...order };
+    delete next[session.key];
+    saveProfile({ order: next });
+  };
 
   const toggleFlag = (k) => {
     const next = { ...days, [t]: { ...flags, [k]: !flags[k] } };
@@ -984,7 +1045,16 @@ export default function PPLHub() {
 
     persist("ppl-lifts", nextLifts);
     persist("ppl-days", nextDays);
-    persist("ppl-profile", { picks, pos: nextPos, goal, custom, theme, sets });
+    persist("ppl-profile", {
+      picks,
+      pos: nextPos,
+      goal,
+      custom,
+      theme,
+      sets,
+      steps,
+      order,
+    });
   };
 
   const saved = loadJSON("ppl-reports", {});
@@ -1009,7 +1079,12 @@ export default function PPLHub() {
 
   if (detail && lifts[detail]) {
     return (
-      <ExerciseDetail name={detail} hist={lifts[detail]} onBack={() => setDetail(null)} />
+      <ExerciseDetail
+        name={detail}
+        hist={lifts[detail]}
+        step={stepFor(groupOf(detail, custom), steps)}
+        onBack={() => setDetail(null)}
+      />
     );
   }
 
@@ -1182,9 +1257,126 @@ export default function PPLHub() {
                       })()}{" "}
                       &middot; {REP_LOW}&ndash;{REP_HIGH} reps &middot; every set to failure
                     </div>
-                    <div style={{ fontSize: 15, color: MUTE, marginTop: 8, lineHeight: 1.4 }}>
-                      {session.items.map((i) => i.name).join(", ")}
-                    </div>
+                    {ordering ? (
+                      <div style={{ marginTop: 10 }}>
+                        {session.items.map((it, i) => (
+                          <div
+                            key={it.name}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                              padding: "8px 10px",
+                              background: WASH,
+                              borderRadius: 10,
+                              marginBottom: 5,
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontFamily: DISPLAY,
+                                fontSize: 18,
+                                color: MUTE,
+                                width: 20,
+                                flexShrink: 0,
+                              }}
+                            >
+                              {i + 1}
+                            </span>
+                            <span style={{ flex: 1, minWidth: 0, lineHeight: 1.25 }}>
+                              <span style={{ fontSize: 16, fontWeight: 700 }}>{it.name}</span>
+                              <span style={{ fontSize: 13, color: MUTE, display: "block" }}>
+                                {GROUP_NAMES[it.group]}
+                              </span>
+                            </span>
+                            <Btn
+                              aria={`Move ${it.name} up`}
+                              onClick={() => moveExercise(i, -1)}
+                              style={{
+                                width: 46,
+                                height: 46,
+                                flexShrink: 0,
+                                fontSize: 20,
+                                background: CARD,
+                                color: i === 0 ? MUTE : TEXT,
+                                border: `1px solid ${RULE}`,
+                              }}
+                            >
+                              ↑
+                            </Btn>
+                            <Btn
+                              aria={`Move ${it.name} down`}
+                              onClick={() => moveExercise(i, 1)}
+                              style={{
+                                width: 46,
+                                height: 46,
+                                flexShrink: 0,
+                                fontSize: 20,
+                                background: CARD,
+                                color: i === session.items.length - 1 ? MUTE : TEXT,
+                                border: `1px solid ${RULE}`,
+                              }}
+                            >
+                              ↓
+                            </Btn>
+                          </div>
+                        ))}
+                        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                          <Btn
+                            onClick={() => setOrdering(false)}
+                            style={{
+                              flex: 1,
+                              padding: "13px 0",
+                              fontSize: 17,
+                              background: session.accent,
+                              color: ON_ACCENT,
+                            }}
+                          >
+                            Done
+                          </Btn>
+                          {order[session.key] && (
+                            <Btn
+                              onClick={resetOrder}
+                              style={{
+                                flexShrink: 0,
+                                padding: "13px 14px",
+                                fontSize: 15,
+                                background: CARD,
+                                color: TEXT,
+                                border: `1px solid ${RULE}`,
+                              }}
+                            >
+                              Reset
+                            </Btn>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 14, color: MUTE, marginTop: 8, lineHeight: 1.35 }}>
+                          This order is kept for every {session.label.toLowerCase()} day
+                          until you change it again.
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: 15, color: MUTE, marginTop: 8, lineHeight: 1.4 }}>
+                          {session.items.map((i, n) => `${n + 1}. ${i.name}`).join("  ·  ")}
+                        </div>
+                        {session.items.length > 1 && (
+                          <Btn
+                            onClick={() => setOrdering(true)}
+                            style={{
+                              marginTop: 8,
+                              padding: "9px 12px",
+                              fontSize: 15,
+                              background: CARD,
+                              color: TEXT,
+                              border: `1px solid ${RULE}`,
+                            }}
+                          >
+                            Change the order
+                          </Btn>
+                        )}
+                      </>
+                    )}
                     <Btn
                       onClick={() => setRunning(true)}
                       style={{
@@ -1662,6 +1854,53 @@ export default function PPLHub() {
                       >
                         sets
                       </div>
+                    </div>
+                  </div>
+                  {/* how much this group adds once 12 reps are hit */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      flexWrap: "wrap",
+                      marginBottom: 10,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 800,
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                        color: MUTE,
+                      }}
+                    >
+                      Add at {REP_HIGH} reps
+                    </div>
+                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                      {STEP_CHOICES.map((n) => {
+                        const on = stepFor(g, steps) === n;
+                        return (
+                          <Btn
+                            key={n}
+                            plain
+                            aria={`Add ${n}kg for ${GROUP_NAMES[g].toLowerCase()}`}
+                            onClick={() => saveProfile({ steps: { ...steps, [g]: n } })}
+                            style={{
+                              padding: "7px 9px",
+                              fontSize: 14,
+                              fontWeight: 800,
+                              borderRadius: 8,
+                              background: on ? PUSH_C : CARD,
+                              color: on ? ON_ACCENT : MUTE,
+                              border: `1px solid ${on ? PUSH_C : RULE}`,
+                            }}
+                          >
+                            {n}kg
+                          </Btn>
+                        );
+                      })}
                     </div>
                   </div>
                   {listFor(g, custom).map((name) => {
