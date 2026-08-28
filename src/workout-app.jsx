@@ -15,6 +15,7 @@ import { Btn, SectionLabel, Stepper } from "./ui";
 import { TrendChart, WeekBars } from "./charts";
 import { WeightPanel } from "./weight";
 import { BLOCK, ReportScreen, buildBlocks } from "./report";
+import { OrderPanel, inOrder } from "./order";
 import {
   ACCENT_TEXT,
   BG,
@@ -93,6 +94,14 @@ const GROUP_NAMES = {
 
 const FOCUS = ["chest", "back", "biceps"];
 
+/* How much a muscle group adds once the top of the rep range is reached. A
+   curl and a leg press do not move up by the same amount, so each group
+   carries its own step; anything unset stays at the 2.5kg everything used
+   before this was a choice. */
+const STEP_CHOICES = [1.25, 2.5, 5, 10];
+const DEFAULT_STEP = 2.5;
+const stepFor = (g, steps) => (steps && steps[g]) || DEFAULT_STEP;
+
 const DEFAULT_PICKS = {
   chest: ["Bench press", "Incline bench press"],
   back: ["Lat pulldowns", "Machine rows"],
@@ -137,6 +146,14 @@ const dayLetter = (iso) => {
 /* The built-in list for a muscle group plus anything added on the phone. */
 const listFor = (g, custom) => [...LIBRARY[g], ...((custom && custom[g]) || [])];
 
+/* which muscle group an exercise belongs to, for the screens that only know a
+   name - the overload step is a property of the group, not the movement */
+const groupOf = (name, custom) =>
+  Object.keys(LIBRARY).find((g) => listFor(g, custom).includes(name));
+
+/* one key per day of the plan, so each keeps its own running order */
+const dayKey = (week, day) => `w${week}d${day}`;
+
 /* Least recently trained first, so the full-body days work round every
    exercise on the list instead of always reaching for the same one. Anything
    never logged comes first; ties keep list order. */
@@ -163,7 +180,7 @@ function byStalest(names, lifts) {
  * chest, back and biceps, a single set each. That keeps a full-body day at the
  * volume it was designed for however many exercises are ticked.
  */
-function buildSession(week, day, picks, custom, lifts) {
+function buildSession(week, day, picks, custom, lifts, steps, order) {
   const spec = PLAN[week][day];
   const hardRules = week === 1 || spec.week1Rules;
   const groups = [...spec.groups, "abs"];
@@ -174,7 +191,9 @@ function buildSession(week, day, picks, custom, lifts) {
     if (!chosen.length) return;
 
     if (hardRules) {
-      chosen.forEach((name) => items.push({ group: g, name, sets: 3 }));
+      chosen.forEach((name) =>
+        items.push({ group: g, name, sets: 3, step: stepFor(g, steps) })
+      );
       return;
     }
 
@@ -182,16 +201,19 @@ function buildSession(week, day, picks, custom, lifts) {
     const picked = byStalest(chosen, lifts).slice(0, slots);
     /* only one ticked where two were wanted: it carries both sets itself */
     const sets = Math.ceil(slots / picked.length);
-    picked.forEach((name) => items.push({ group: g, name, sets }));
+    picked.forEach((name) =>
+      items.push({ group: g, name, sets, step: stepFor(g, steps) })
+    );
   });
 
   return {
     week,
     day,
+    key: dayKey(week, day),
     label: spec.label,
     toFailure: hardRules,
     accent: hardRules ? PUSH : HOLD,
-    items,
+    items: inOrder(items, order && order[dayKey(week, day)], (n) => groupOf(n, custom)),
   };
 }
 
@@ -200,12 +222,15 @@ const advance = (pos) =>
     ? { week: pos.week, day: pos.day + 1 }
     : { week: pos.week === 1 ? 2 : 1, day: 1 };
 
-/* progressive overload rule: add a rep until 12, then add 2.5kg and drop to 8 */
-const nextTarget = (best) => {
+/* progressive overload rule: add a rep until 12, then add the muscle group's
+   own step and drop back to 8 */
+const nextTarget = (best, step = DEFAULT_STEP) => {
   if (!best) return null;
   return best.r < 12
     ? { w: best.w, r: best.r + 1 }
-    : { w: +(best.w + 2.5).toFixed(1), r: 8 };
+    /* two places, not one: a 1.25kg step off 10kg is 11.25, and rounding that
+       to 11.3 would quietly hand back a quarter kilo every time */
+    : { w: +(best.w + step).toFixed(2), r: 8 };
 };
 
 /* ============================ add an exercise ============================ */
@@ -275,7 +300,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
   const [idx, setIdx] = useState(0);
   const [entries, setEntries] = useState(() =>
     session.items.map((it) => {
-      const tgt = nextTarget(bestOf(lifts[it.name]));
+      const tgt = nextTarget(bestOf(lifts[it.name]), it.step);
       return Array.from({ length: it.sets }, () => ({
         w: tgt ? tgt.w : 20,
         r: tgt ? tgt.r : 10,
@@ -287,7 +312,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
   const item = session.items[idx];
   const name = item.name;
   const last = bestOf(lifts[name]);
-  const target = nextTarget(last);
+  const target = nextTarget(last, item.step);
   const sets = entries[idx];
 
   const setField = (si, field, val) =>
@@ -517,12 +542,12 @@ function Session({ session, lifts, onFinish, onQuit }) {
 
 /* ============================ overload detail ============================ */
 
-function ExerciseDetail({ name, hist, onBack }) {
+function ExerciseDetail({ name, hist, step = DEFAULT_STEP, onBack }) {
   const [picked, setPicked] = useState(null);
   const sessions = bestPerDay(hist);
   const first = sessions[0];
   const best = bestOf(hist);
-  const target = nextTarget(best);
+  const target = nextTarget(best, step);
   const recent = sessions.slice(-12).reverse();
   const maxVol = Math.max(...recent.map((s) => s.w * s.r), 1);
   const gain = first && best ? +(best.w - first.w).toFixed(1) : 0;
@@ -573,7 +598,7 @@ function ExerciseDetail({ name, hist, onBack }) {
             {target ? `${target.w}kg × ${target.r}` : "—"}
           </div>
           <div style={{ fontSize: 14, fontWeight: 700, marginTop: 4 }}>
-            Add a rep each time. At 12 reps, add 2.5kg and drop back to 8.
+            Add a rep each time. At 12 reps, add {step}kg and drop back to 8.
           </div>
         </div>
 
@@ -902,6 +927,9 @@ export default function WorkoutHub() {
   const [lifts, setLifts] = useState(() => loadJSON("wk-lifts", {}));
   const [weights, setWeights] = useState(() => loadJSON("wk-weight", {}));
   const [report, setReport] = useState(false);
+  const [ordering, setOrdering] = useState(false);
+  const [steps, setSteps] = useState(profile.steps || {});
+  const [order, setOrder] = useState(profile.order || {});
 
   const persist = (key, value) => {
     try {
@@ -913,31 +941,31 @@ export default function WorkoutHub() {
     }
   };
 
-  const saveProfile = (nextPicks, nextPos, nextCustom = custom, nextTheme = theme) => {
-    setPicks(nextPicks);
-    setPos(nextPos);
-    setCustom(nextCustom);
-    setTheme(nextTheme);
-    persist("wk-profile", {
-      picks: nextPicks,
-      pos: nextPos,
-      custom: nextCustom,
-      theme: nextTheme,
-    });
+  /* one merged write, so a screen can change one thing without restating the
+     rest of the profile */
+  const saveProfile = (next) => {
+    const merged = { picks, pos, custom, theme, steps, order, ...next };
+    if (next.picks) setPicks(next.picks);
+    if (next.pos) setPos(next.pos);
+    if (next.custom) setCustom(next.custom);
+    if (next.theme) setTheme(next.theme);
+    if (next.steps) setSteps(next.steps);
+    if (next.order) setOrder(next.order);
+    persist("wk-profile", merged);
   };
 
   /* a new exercise goes on the list and is ticked straight away */
   const addExercise = (g, name) =>
-    saveProfile({ ...picks, [g]: [...(picks[g] || []), name] }, pos, {
-      ...custom,
-      [g]: [...(custom[g] || []), name],
+    saveProfile({
+      picks: { ...picks, [g]: [...(picks[g] || []), name] },
+      custom: { ...custom, [g]: [...(custom[g] || []), name] },
     });
 
   /* only ones added here can be taken off again; any logged history stays */
   const removeExercise = (g, name) =>
-    saveProfile({ ...picks, [g]: (picks[g] || []).filter((n) => n !== name) }, pos, {
-      ...custom,
-      [g]: (custom[g] || []).filter((n) => n !== name),
+    saveProfile({
+      picks: { ...picks, [g]: (picks[g] || []).filter((n) => n !== name) },
+      custom: { ...custom, [g]: (custom[g] || []).filter((n) => n !== name) },
     });
 
   useEffect(() => {
@@ -959,7 +987,23 @@ export default function WorkoutHub() {
     persist("wk-days", next);
   };
 
-  const session = buildSession(pos.week, pos.day, picks, custom, lifts);
+  const session = buildSession(pos.week, pos.day, picks, custom, lifts, steps, order);
+
+  /* The running order is saved per day of the plan. Swapping neighbours keeps
+     every name in the list, which dragging on a small screen does not. */
+  const moveExercise = (i, d) => {
+    const names = session.items.map((it) => it.name);
+    const j = i + d;
+    if (j < 0 || j >= names.length) return;
+    [names[i], names[j]] = [names[j], names[i]];
+    saveProfile({ order: { ...order, [session.key]: names } });
+  };
+
+  const resetOrder = () => {
+    const next = { ...order };
+    delete next[session.key];
+    saveProfile({ order: next });
+  };
 
   const finishSession = (result) => {
     const nextLifts = { ...lifts };
@@ -979,7 +1023,7 @@ export default function WorkoutHub() {
 
     persist("wk-lifts", nextLifts);
     persist("wk-days", nextDays);
-    persist("wk-profile", { picks, pos: nextPos, custom, theme });
+    persist("wk-profile", { picks, pos: nextPos, custom, theme, steps, order });
   };
 
   const reportMetrics = [
@@ -1034,6 +1078,7 @@ export default function WorkoutHub() {
       <ExerciseDetail
         name={detail}
         hist={lifts[detail]}
+        step={stepFor(groupOf(detail, custom), steps)}
         onBack={() => setDetail(null)}
       />
     );
@@ -1250,9 +1295,39 @@ export default function WorkoutHub() {
                   {session.items.length} exercises &middot;{" "}
                   {session.items.reduce((n, i) => n + i.sets, 0)} sets
                 </div>
-                <div style={{ fontSize: 15, color: MUTE, marginTop: 6, lineHeight: 1.4 }}>
-                  {session.items.map((i) => i.name).join(", ")}
-                </div>
+                {ordering ? (
+                  <OrderPanel
+                    items={session.items}
+                    groupNames={GROUP_NAMES}
+                    accent={session.accent}
+                    hasOrder={!!order[session.key]}
+                    onMove={moveExercise}
+                    onReset={resetOrder}
+                    onDone={() => setOrdering(false)}
+                    note="This order is kept for this day of the plan until you change it again."
+                  />
+                ) : (
+                  <>
+                    <div style={{ fontSize: 15, color: MUTE, marginTop: 6, lineHeight: 1.4 }}>
+                      {session.items.map((i, n) => `${n + 1}. ${i.name}`).join("  ·  ")}
+                    </div>
+                    {session.items.length > 1 && (
+                      <Btn
+                        onClick={() => setOrdering(true)}
+                        style={{
+                          marginTop: 8,
+                          padding: "9px 12px",
+                          fontSize: 15,
+                          background: CARD,
+                          color: TEXT,
+                          border: `1px solid ${RULE}`,
+                        }}
+                      >
+                        Change the order
+                      </Btn>
+                    )}
+                  </>
+                )}
 
                 <Btn
                   onClick={() => setRunning(true)}
@@ -1579,7 +1654,7 @@ export default function WorkoutHub() {
                 return (
                   <Btn
                     key={k}
-                    onClick={() => saveProfile(picks, pos, custom, k)}
+                    onClick={() => saveProfile({ theme: k })}
                     style={{
                       flex: 1,
                       padding: "16px 4px",
@@ -1614,15 +1689,64 @@ export default function WorkoutHub() {
                 >
                   {GROUP_NAMES[g]}
                 </div>
+                {/* how much this group adds once 12 reps are hit */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    flexWrap: "wrap",
+                    marginBottom: 10,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 800,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                      color: MUTE,
+                    }}
+                  >
+                    Add at 12 reps
+                  </div>
+                  <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                    {STEP_CHOICES.map((n) => {
+                      const on = stepFor(g, steps) === n;
+                      return (
+                        <Btn
+                          key={n}
+                          plain
+                          aria={`Add ${n}kg for ${GROUP_NAMES[g].toLowerCase()}`}
+                          onClick={() => saveProfile({ steps: { ...steps, [g]: n } })}
+                          style={{
+                            padding: "7px 9px",
+                            fontSize: 14,
+                            fontWeight: 800,
+                            borderRadius: 8,
+                            background: on ? PUSH : CARD,
+                            color: on ? ON_ACCENT : MUTE,
+                            border: `1px solid ${on ? PUSH : RULE}`,
+                          }}
+                        >
+                          {n}kg
+                        </Btn>
+                      );
+                    })}
+                  </div>
+                </div>
                 {listFor(g, custom).map((name) => {
                   const on = (picks[g] || []).includes(name);
                   const mine = (custom[g] || []).includes(name);
                   const toggle = () => {
                     const cur = picks[g] || [];
-                    saveProfile(
-                      { ...picks, [g]: on ? cur.filter((n) => n !== name) : [...cur, name] },
-                      pos
-                    );
+                    saveProfile({
+                      picks: {
+                        ...picks,
+                        [g]: on ? cur.filter((n) => n !== name) : [...cur, name],
+                      },
+                    });
                   };
                   /* two separate buttons, never one inside the other */
                   return (
@@ -1701,7 +1825,7 @@ export default function WorkoutHub() {
                     return (
                       <Btn
                         key={`${w}-${d}`}
-                        onClick={() => saveProfile(picks, { week: w, day: d })}
+                        onClick={() => saveProfile({ pos: { week: w, day: d } })}
                         style={{
                           flex: "1 0 30%",
                           padding: "12px 6px",

@@ -106,7 +106,91 @@ export function buildBlocks(days, lifts, weights, t, habits) {
   );
 }
 
-function BlockCard({ b, metrics }) {
+/* ---- the written overview ----
+ * The tiles carry the numbers; this says what they add up to, in the order
+ * anyone would say it out loud: how the training went, then eating and cardio,
+ * then body weight, then what moved on the bar. Every clause is computed - a
+ * block with nothing in it says so rather than inventing a good month. */
+function overview(b, prev, metrics) {
+  const lines = [];
+  const head = metrics[0];
+  const n = (b.counts[head.key] || 0);
+  const word = (k, c) => (c === 1 ? k.one : k.many);
+
+  if (!b.complete) {
+    lines.push(
+      `Day ${b.elapsed} of ${BLOCK}, so this one is still open. ${n} ${word(head, n)} down, ${head.target} the aim.`
+    );
+  } else if (n > head.target) {
+    lines.push(
+      `${n} ${word(head, n)} in four weeks — ${n - head.target} more than the ${head.target} the plan asks for.`
+    );
+  } else if (n === head.target) {
+    lines.push(
+      `${n} ${word(head, n)} in four weeks — exactly the ${head.target} the plan asks for.`
+    );
+  } else {
+    const short = head.target - n;
+    lines.push(
+      `${n} ${word(head, n)} in four weeks, ${short} short of the ${head.target} this plan asks for.`
+    );
+  }
+
+  if (prev) {
+    const was = prev.counts[head.key] || 0;
+    const d = n - was;
+    lines.push(
+      d === 0
+        ? `Same as the four weeks before.`
+        : `${d > 0 ? "Up" : "Down"} ${Math.abs(d)} on the four weeks before.`
+    );
+  }
+
+  const rest = metrics.slice(1);
+  if (rest.length)
+    lines.push(
+      rest
+        .map((m) => `${m.label.toLowerCase()} ${b.counts[m.key] || 0} of ${m.target}`)
+        .join(", ")
+        .replace(/^./, (c) => c.toUpperCase()) + "."
+    );
+
+  if (b.weightFrom == null) {
+    lines.push("No weigh-ins in this stretch.");
+  } else if (b.weightChange == null) {
+    lines.push(`One weigh-in: ${b.weightFrom}kg.`);
+  } else if (b.weightChange === 0) {
+    lines.push(`Body weight held at ${b.weightFrom}kg.`);
+  } else {
+    lines.push(
+      `Body weight ${b.weightFrom} → ${b.weightTo}kg, ${
+        b.weightChange > 0 ? "up" : "down"
+      } ${Math.abs(b.weightChange)}kg.`
+    );
+  }
+
+  const moved = b.up.length;
+  const total = moved + b.stalled.length;
+  if (!total) {
+    lines.push("No sets logged, so there is nothing to compare on the bar.");
+  } else if (!moved) {
+    lines.push(
+      `Nothing beat its previous best — ${total} ${total === 1 ? "lift" : "lifts"} held or dropped.`
+    );
+  } else {
+    const top = b.up[0];
+    lines.push(
+      `${moved} of ${total} ${total === 1 ? "lift" : "lifts"} moved up, the biggest being ${top.name}, ${top.from.w}kg × ${top.from.r} to ${top.to.w}kg × ${top.to.r}.` +
+        (b.stalled.length
+          ? ` ${b.stalled.length} stalled or dropped.`
+          : " Nothing stalled.")
+    );
+  }
+
+  return lines;
+}
+
+function BlockCard({ b, prev, metrics }) {
   const stat = (label, value, tgt) => (
     <div key={label} style={{ flex: 1, background: WASH, padding: "10px 6px", textAlign: "center" }}>
       <div style={{ fontFamily: DISPLAY, fontSize: 26, letterSpacing: "-0.02em" }}>
@@ -169,6 +253,20 @@ function BlockCard({ b, metrics }) {
           {shortDate(b.start)} – {shortDate(b.end)}
           {b.complete ? "" : " · still running"}
         </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 8,
+          padding: "12px 12px 13px",
+          background: WASH,
+          borderRadius: 12,
+          fontSize: 15,
+          lineHeight: 1.45,
+        }}
+      >
+        <SectionLabel style={{ marginBottom: 5 }}>In short</SectionLabel>
+        {overview(b, prev, metrics).join(" ")}
       </div>
 
       <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
@@ -318,7 +416,7 @@ export function ReportScreen({ blocks, metrics, onBack }) {
 
       <div style={{ padding: "14px 16px 0" }}>
         {[...blocks].reverse().map((b) => (
-          <BlockCard key={b.i} b={b} metrics={metrics} />
+          <BlockCard key={b.i} b={b} prev={blocks[b.i - 1]} metrics={metrics} />
         ))}
       </div>
     </div>

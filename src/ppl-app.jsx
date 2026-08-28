@@ -7,6 +7,7 @@ import { Btn, SectionLabel, Stepper } from "./ui";
 import { TrendChart, WeekBars } from "./charts";
 import { WeightPanel } from "./weight";
 import { BLOCK, ReportScreen, buildBlocks } from "./report";
+import { OrderPanel, inOrder } from "./order";
 import {
   ACCENT_TEXT,
   BG,
@@ -187,21 +188,8 @@ function buildSession(pos, picks, custom, sets, steps, order) {
     key: spec.key,
     label: spec.label,
     accent: spec.color,
-    items: inOrder(items, order && order[spec.key]),
+    items: inOrder(items, order && order[spec.key], (n) => groupOf(n, custom)),
   };
-}
-
-/* A saved running order for this day, if there is one. Anything the order does
-   not name - newly ticked, or added since - keeps its place at the end in
-   library order, rather than disappearing or jumping to the front. */
-function inOrder(items, names) {
-  if (!names || !names.length) return items;
-  const rank = new Map(names.map((n, i) => [n, i]));
-  return [...items].sort((a, b) => {
-    const ra = rank.has(a.name) ? rank.get(a.name) : Infinity;
-    const rb = rank.has(b.name) ? rank.get(b.name) : Infinity;
-    return ra === rb ? 0 : ra - rb;
-  });
 }
 
 const advance = (pos) => (pos % CYCLE_LEN) + 1;
@@ -1258,103 +1246,16 @@ export default function PPLHub() {
                       &middot; {REP_LOW}&ndash;{REP_HIGH} reps &middot; every set to failure
                     </div>
                     {ordering ? (
-                      <div style={{ marginTop: 10 }}>
-                        {session.items.map((it, i) => (
-                          <div
-                            key={it.name}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6,
-                              padding: "8px 10px",
-                              background: WASH,
-                              borderRadius: 10,
-                              marginBottom: 5,
-                            }}
-                          >
-                            <span
-                              style={{
-                                fontFamily: DISPLAY,
-                                fontSize: 18,
-                                color: MUTE,
-                                width: 20,
-                                flexShrink: 0,
-                              }}
-                            >
-                              {i + 1}
-                            </span>
-                            <span style={{ flex: 1, minWidth: 0, lineHeight: 1.25 }}>
-                              <span style={{ fontSize: 16, fontWeight: 700 }}>{it.name}</span>
-                              <span style={{ fontSize: 13, color: MUTE, display: "block" }}>
-                                {GROUP_NAMES[it.group]}
-                              </span>
-                            </span>
-                            <Btn
-                              aria={`Move ${it.name} up`}
-                              onClick={() => moveExercise(i, -1)}
-                              style={{
-                                width: 46,
-                                height: 46,
-                                flexShrink: 0,
-                                fontSize: 20,
-                                background: CARD,
-                                color: i === 0 ? MUTE : TEXT,
-                                border: `1px solid ${RULE}`,
-                              }}
-                            >
-                              ↑
-                            </Btn>
-                            <Btn
-                              aria={`Move ${it.name} down`}
-                              onClick={() => moveExercise(i, 1)}
-                              style={{
-                                width: 46,
-                                height: 46,
-                                flexShrink: 0,
-                                fontSize: 20,
-                                background: CARD,
-                                color: i === session.items.length - 1 ? MUTE : TEXT,
-                                border: `1px solid ${RULE}`,
-                              }}
-                            >
-                              ↓
-                            </Btn>
-                          </div>
-                        ))}
-                        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                          <Btn
-                            onClick={() => setOrdering(false)}
-                            style={{
-                              flex: 1,
-                              padding: "13px 0",
-                              fontSize: 17,
-                              background: session.accent,
-                              color: ON_ACCENT,
-                            }}
-                          >
-                            Done
-                          </Btn>
-                          {order[session.key] && (
-                            <Btn
-                              onClick={resetOrder}
-                              style={{
-                                flexShrink: 0,
-                                padding: "13px 14px",
-                                fontSize: 15,
-                                background: CARD,
-                                color: TEXT,
-                                border: `1px solid ${RULE}`,
-                              }}
-                            >
-                              Reset
-                            </Btn>
-                          )}
-                        </div>
-                        <div style={{ fontSize: 14, color: MUTE, marginTop: 8, lineHeight: 1.35 }}>
-                          This order is kept for every {session.label.toLowerCase()} day
-                          until you change it again.
-                        </div>
-                      </div>
+                      <OrderPanel
+                        items={session.items}
+                        groupNames={GROUP_NAMES}
+                        accent={session.accent}
+                        hasOrder={!!order[session.key]}
+                        onMove={moveExercise}
+                        onReset={resetOrder}
+                        onDone={() => setOrdering(false)}
+                        note={`This order is kept for every ${session.label.toLowerCase()} day until you change it again.`}
+                      />
                     ) : (
                       <>
                         <div style={{ fontSize: 15, color: MUTE, marginTop: 8, lineHeight: 1.4 }}>
