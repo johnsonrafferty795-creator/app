@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import { loadJSON, saveJSON } from "./storage";
 import { dayNum, shiftDay, shortDate, today } from "./dates";
-import { bestOf, bestPerDay } from "./lifts";
+import { bestPerDay, overloadNote, overloadTarget, topSet } from "./lifts";
 import { Btn, SectionLabel, Stepper } from "./ui";
 import { TrendChart, WeekBars } from "./charts";
 import { WeightPanel } from "./weight";
@@ -127,7 +127,8 @@ const SET_CHOICES = [2, 3];
 const DEFAULT_SETS = 3;
 const setsFor = (g, sets) => (sets && sets[g]) || DEFAULT_SETS;
 const REP_LOW = 6;
-const REP_HIGH = 12;
+/* the rep the weight moves up at: reach 13 and the next session is heavier */
+const REP_HIGH = 13;
 
 /* How much weight a muscle group adds once the top of the rep range is reached.
    A dumbbell curl and a leg press do not move up by the same amount, so each
@@ -194,16 +195,10 @@ function buildSession(pos, picks, custom, sets, steps, order) {
 
 const advance = (pos) => (pos % CYCLE_LEN) + 1;
 
-/* progressive overload: add a rep to the top of the range, then add the muscle
-   group's own step and start again at the bottom of it */
-const nextTarget = (best, step = DEFAULT_STEP) => {
-  if (!best) return null;
-  return best.r < REP_HIGH
-    ? { w: best.w, r: best.r + 1 }
-    /* two places, not one: a 1.25kg step off 10kg is 11.25, and rounding it to
-       11.3 would quietly hand back a quarter kilo every time it came round */
-    : { w: +(best.w + step).toFixed(2), r: REP_LOW };
-};
+/* progressive overload, on this app's rep range: a rep every third session at
+   the same weight, and at 13 the weight goes up by the group's step */
+const nextTarget = (hist, step = DEFAULT_STEP) =>
+  overloadTarget(hist, { step, low: REP_LOW, top: REP_HIGH });
 
 
 /* ============================ session runner ============================ */
@@ -212,7 +207,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
   const [idx, setIdx] = useState(0);
   const [entries, setEntries] = useState(() =>
     session.items.map((it) => {
-      const tgt = nextTarget(bestOf(lifts[it.name]), it.step);
+      const tgt = nextTarget(lifts[it.name], it.step);
       return Array.from({ length: it.sets }, () => ({
         w: tgt ? tgt.w : 20,
         r: tgt ? tgt.r : 10,
@@ -223,8 +218,8 @@ function Session({ session, lifts, onFinish, onQuit }) {
 
   const item = session.items[idx];
   const name = item.name;
-  const last = bestOf(lifts[name]);
-  const target = nextTarget(last, item.step);
+  const target = nextTarget(lifts[name], item.step);
+  const last = target && target.best;
   const sets = entries[idx];
 
   const setField = (si, field, val) =>
@@ -234,7 +229,10 @@ function Session({ session, lifts, onFinish, onQuit }) {
       )
     );
 
-  const beaten = last && sets.some((s) => s.done && s.w * s.r > last.w * last.r);
+  /* hit means the target itself was met - the weight and the reps asked for -
+     rather than any set that happens to out-volume the old best */
+  const beaten =
+    target && sets.some((s) => s.done && s.w >= target.w && s.r >= target.r);
 
   const finishExercise = () => {
     if (idx < session.items.length - 1) {
@@ -342,7 +340,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
           </div>
           {last && (
             <div style={{ fontSize: 14, fontWeight: 700, marginTop: 4 }}>
-              Best so far: {last.w}kg × {last.r}
+              {overloadNote(target, REP_HIGH)}
             </div>
           )}
         </div>
@@ -441,8 +439,8 @@ function ExerciseDetail({ name, hist, step = DEFAULT_STEP, onBack }) {
   const [picked, setPicked] = useState(null);
   const sessions = bestPerDay(hist);
   const first = sessions[0];
-  const best = bestOf(hist);
-  const target = nextTarget(best, step);
+  const target = nextTarget(hist, step);
+  const best = target && target.best;
   const recent = sessions.slice(-12).reverse();
   const maxVol = Math.max(...recent.map((s) => s.w * s.r), 1);
   const gain = first && best ? +(best.w - first.w).toFixed(1) : 0;
@@ -509,8 +507,11 @@ function ExerciseDetail({ name, hist, step = DEFAULT_STEP, onBack }) {
             {target ? `${target.w}kg × ${target.r}` : "—"}
           </div>
           <div style={{ fontSize: 14, fontWeight: 700, marginTop: 4 }}>
-            Add a rep each time. At {REP_HIGH} reps, add {step}kg and drop back
-            to {REP_LOW}.
+            {overloadNote(target, REP_HIGH)}
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 700, marginTop: 6, opacity: 0.9 }}>
+            A rep every 3 sessions. At {REP_HIGH} reps, add {step}kg and drop
+            back to {REP_LOW}.
           </div>
         </div>
 
@@ -1535,9 +1536,9 @@ export default function PPLHub() {
                 </div>
               )}
               {Object.entries(lifts).map(([name, hist]) => {
-                const b = bestOf(hist);
+                const b = topSet(hist);
                 const first = hist[0];
-                const up = first && b && b.w * b.r > first.w * first.r;
+                const up = first && b && (b.w > first.w || (b.w === first.w && b.r > first.r));
                 return (
                   <Btn
                     key={name}
@@ -1757,7 +1758,7 @@ export default function PPLHub() {
                       </div>
                     </div>
                   </div>
-                  {/* how much this group adds once 12 reps are hit */}
+                  {/* how much this group adds once 13 reps are hit */}
                   <div
                     style={{
                       display: "flex",

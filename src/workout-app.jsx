@@ -10,7 +10,7 @@ import {
   summarise,
 } from "./backup";
 import { dayNum, shiftDay, shortDate, today } from "./dates";
-import { bestOf, bestPerDay } from "./lifts";
+import { bestPerDay, overloadNote, overloadTarget, topSet } from "./lifts";
 import { Btn, SectionLabel, Stepper } from "./ui";
 import { TrendChart, WeekBars } from "./charts";
 import { WeightPanel } from "./weight";
@@ -222,16 +222,12 @@ const advance = (pos) =>
     ? { week: pos.week, day: pos.day + 1 }
     : { week: pos.week === 1 ? 2 : 1, day: 1 };
 
-/* progressive overload rule: add a rep until 12, then add the muscle group's
-   own step and drop back to 8 */
-const nextTarget = (best, step = DEFAULT_STEP) => {
-  if (!best) return null;
-  return best.r < 12
-    ? { w: best.w, r: best.r + 1 }
-    /* two places, not one: a 1.25kg step off 10kg is 11.25, and rounding that
-       to 11.3 would quietly hand back a quarter kilo every time */
-    : { w: +(best.w + step).toFixed(2), r: 8 };
-};
+/* progressive overload, on this app's rep range: a rep every third session at
+   the same weight, and at 13 the weight goes up by the group's step */
+const REP_LOW = 8;
+const REP_HIGH = 13;
+const nextTarget = (hist, step = DEFAULT_STEP) =>
+  overloadTarget(hist, { step, low: REP_LOW, top: REP_HIGH });
 
 /* ============================ add an exercise ============================ */
 
@@ -300,7 +296,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
   const [idx, setIdx] = useState(0);
   const [entries, setEntries] = useState(() =>
     session.items.map((it) => {
-      const tgt = nextTarget(bestOf(lifts[it.name]), it.step);
+      const tgt = nextTarget(lifts[it.name], it.step);
       return Array.from({ length: it.sets }, () => ({
         w: tgt ? tgt.w : 20,
         r: tgt ? tgt.r : 10,
@@ -311,8 +307,8 @@ function Session({ session, lifts, onFinish, onQuit }) {
 
   const item = session.items[idx];
   const name = item.name;
-  const last = bestOf(lifts[name]);
-  const target = nextTarget(last, item.step);
+  const target = nextTarget(lifts[name], item.step);
+  const last = target && target.best;
   const sets = entries[idx];
 
   const setField = (si, field, val) =>
@@ -324,8 +320,10 @@ function Session({ session, lifts, onFinish, onQuit }) {
       )
     );
 
+  /* hit means the target itself was met - the weight and the reps asked for -
+     rather than any set that happens to out-volume the old best */
   const beaten =
-    last && sets.some((s) => s.done && s.w * s.r > last.w * last.r);
+    target && sets.some((s) => s.done && s.w >= target.w && s.r >= target.r);
 
   const finishExercise = () => {
     if (idx < session.items.length - 1) {
@@ -447,7 +445,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
           </div>
           {last && (
             <div style={{ fontSize: 14, fontWeight: 700, marginTop: 4 }}>
-              Best so far: {last.w}kg × {last.r}
+              {overloadNote(target, REP_HIGH)}
             </div>
           )}
         </div>
@@ -473,7 +471,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
                 marginBottom: 8,
               }}
             >
-              Set {si + 1} &middot; 8&ndash;12 reps
+              Set {si + 1} &middot; {REP_LOW}&ndash;{REP_HIGH} reps
             </div>
             <div style={{ display: "grid", gap: 10 }}>
               <Stepper
@@ -546,8 +544,8 @@ function ExerciseDetail({ name, hist, step = DEFAULT_STEP, onBack }) {
   const [picked, setPicked] = useState(null);
   const sessions = bestPerDay(hist);
   const first = sessions[0];
-  const best = bestOf(hist);
-  const target = nextTarget(best, step);
+  const target = nextTarget(hist, step);
+  const best = target && target.best;
   const recent = sessions.slice(-12).reverse();
   const maxVol = Math.max(...recent.map((s) => s.w * s.r), 1);
   const gain = first && best ? +(best.w - first.w).toFixed(1) : 0;
@@ -598,7 +596,11 @@ function ExerciseDetail({ name, hist, step = DEFAULT_STEP, onBack }) {
             {target ? `${target.w}kg × ${target.r}` : "—"}
           </div>
           <div style={{ fontSize: 14, fontWeight: 700, marginTop: 4 }}>
-            Add a rep each time. At 12 reps, add {step}kg and drop back to 8.
+            {overloadNote(target, REP_HIGH)}
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 700, marginTop: 6, opacity: 0.9 }}>
+            A rep every 3 sessions. At {REP_HIGH} reps, add {step}kg and drop
+            back to {REP_LOW}.
           </div>
         </div>
 
@@ -1263,7 +1265,7 @@ export default function WorkoutHub() {
               }}
             >
               {session.toFailure
-                ? "3 sets · 8–12 reps · to true failure"
+                ? "3 sets · 8–13 reps · to true failure"
                 : "1 exercise per group, 2 for chest/back/biceps · 1 set each · stop close to failure"}
             </div>
 
@@ -1576,9 +1578,9 @@ export default function WorkoutHub() {
                 </div>
               )}
               {Object.entries(lifts).map(([name, hist]) => {
-                const b = bestOf(hist);
+                const b = topSet(hist);
                 const first = hist[0];
-                const up = first && b && b.w * b.r > first.w * first.r;
+                const up = first && b && (b.w > first.w || (b.w === first.w && b.r > first.r));
                 return (
                   <Btn
                     key={name}
@@ -1689,7 +1691,7 @@ export default function WorkoutHub() {
                 >
                   {GROUP_NAMES[g]}
                 </div>
-                {/* how much this group adds once 12 reps are hit */}
+                {/* how much this group adds once 13 reps are hit */}
                 <div
                   style={{
                     display: "flex",
@@ -1709,7 +1711,7 @@ export default function WorkoutHub() {
                       color: MUTE,
                     }}
                   >
-                    Add at 12 reps
+                    Add at {REP_HIGH} reps
                   </div>
                   <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
                     {STEP_CHOICES.map((n) => {
