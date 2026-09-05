@@ -2,7 +2,15 @@ import { useEffect, useState } from "react";
 
 import { loadJSON, saveJSON } from "./storage";
 import { dayNum, shiftDay, shortDate, today } from "./dates";
-import { bestPerDay, overloadNote, overloadTarget, topSet } from "./lifts";
+import {
+  DEFAULT_TOP,
+  HOLD_SESSIONS,
+  bestPerDay,
+  overloadNote,
+  overloadTarget,
+  topSet,
+} from "./lifts";
+import { ExerciseRules, RulesButton } from "./rules";
 import { Btn, SectionLabel, Stepper } from "./ui";
 import { TrendChart, WeekBars } from "./charts";
 import { WeightPanel } from "./weight";
@@ -125,10 +133,23 @@ const HABITS = ["workout", "eat", "cardio"];
 
 const SET_CHOICES = [2, 3];
 const DEFAULT_SETS = 3;
-const setsFor = (g, sets) => (sets && sets[g]) || DEFAULT_SETS;
 const REP_LOW = 6;
-/* the rep the weight moves up at: reach 13 and the next session is heavier */
-const REP_HIGH = 13;
+/* the rep the weight moves up at by default: reach 13 and the next session is
+   heavier. Each exercise can pick its own. */
+const REP_HIGH = DEFAULT_TOP;
+
+/* Sets, the rep count that moves the weight, and how long a target is held all
+   belong to the exercise rather than the muscle group. An older profile has
+   sets per group and nothing else, so those are the fallbacks: it trains
+   exactly as it did before anything here is touched. */
+const rulesFor = (name, g, rules, sets) => {
+  const r = (rules && rules[name]) || {};
+  return {
+    sets: r.sets || (sets && sets[g]) || DEFAULT_SETS,
+    top: r.top || REP_HIGH,
+    hold: r.hold || HOLD_SESSIONS,
+  };
+};
 
 /* How much weight a muscle group adds once the top of the rep range is reached.
    A dumbbell curl and a leg press do not move up by the same amount, so each
@@ -169,19 +190,22 @@ const groupOf = (name, custom) =>
 
 /* Every exercise ticked for a muscle group is in the session — not one of them.
    List order, so the session doesn't reshuffle when a choice is toggled. */
-function buildSession(pos, picks, custom, sets, steps, order) {
+function buildSession(pos, picks, custom, sets, steps, order, rules) {
   const spec = CYCLE[pos - 1];
   const items = [];
   spec.groups.forEach((g) => {
     const chosen = picks[g] || [];
     listFor(g, custom).forEach((name) => {
-      if (chosen.includes(name))
-        items.push({
-          group: g,
-          name,
-          sets: setsFor(g, sets),
-          step: stepFor(g, steps),
-        });
+      if (!chosen.includes(name)) return;
+      const r = rulesFor(name, g, rules, sets);
+      items.push({
+        group: g,
+        name,
+        sets: r.sets,
+        top: r.top,
+        hold: r.hold,
+        step: stepFor(g, steps),
+      });
     });
   });
   return {
@@ -197,8 +221,8 @@ const advance = (pos) => (pos % CYCLE_LEN) + 1;
 
 /* progressive overload, on this app's rep range: a rep every third session at
    the same weight, and at 13 the weight goes up by the group's step */
-const nextTarget = (hist, step = DEFAULT_STEP) =>
-  overloadTarget(hist, { step, low: REP_LOW, top: REP_HIGH });
+const nextTarget = (hist, step = DEFAULT_STEP, top = REP_HIGH, hold = HOLD_SESSIONS) =>
+  overloadTarget(hist, { step, low: REP_LOW, top, hold });
 
 
 /* ============================ session runner ============================ */
@@ -207,7 +231,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
   const [idx, setIdx] = useState(0);
   const [entries, setEntries] = useState(() =>
     session.items.map((it) => {
-      const tgt = nextTarget(lifts[it.name], it.step);
+      const tgt = nextTarget(lifts[it.name], it.step, it.top, it.hold);
       return Array.from({ length: it.sets }, () => ({
         w: tgt ? tgt.w : 20,
         r: tgt ? tgt.r : 10,
@@ -218,7 +242,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
 
   const item = session.items[idx];
   const name = item.name;
-  const target = nextTarget(lifts[name], item.step);
+  const target = nextTarget(lifts[name], item.step, item.top, item.hold);
   const last = target && target.best;
   const sets = entries[idx];
 
@@ -340,7 +364,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
           </div>
           {last && (
             <div style={{ fontSize: 14, fontWeight: 700, marginTop: 4 }}>
-              {overloadNote(target, REP_HIGH)}
+              {overloadNote(target, item.top)}
             </div>
           )}
         </div>
@@ -366,7 +390,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
                 marginBottom: 8,
               }}
             >
-              Set {si + 1} &middot; {REP_LOW}&ndash;{REP_HIGH} reps
+              Set {si + 1} &middot; {REP_LOW}&ndash;{item.top} reps
             </div>
             <div style={{ display: "grid", gap: 10 }}>
               <Stepper
@@ -435,11 +459,11 @@ function Session({ session, lifts, onFinish, onQuit }) {
 
 /* ============================ overload detail ============================ */
 
-function ExerciseDetail({ name, hist, step = DEFAULT_STEP, onBack }) {
+function ExerciseDetail({ name, hist, step = DEFAULT_STEP, top = REP_HIGH, hold = HOLD_SESSIONS, onBack }) {
   const [picked, setPicked] = useState(null);
   const sessions = bestPerDay(hist);
   const first = sessions[0];
-  const target = nextTarget(hist, step);
+  const target = nextTarget(hist, step, top, hold);
   const best = target && target.best;
   const recent = sessions.slice(-12).reverse();
   const maxVol = Math.max(...recent.map((s) => s.w * s.r), 1);
@@ -507,11 +531,11 @@ function ExerciseDetail({ name, hist, step = DEFAULT_STEP, onBack }) {
             {target ? `${target.w}kg × ${target.r}` : "—"}
           </div>
           <div style={{ fontSize: 14, fontWeight: 700, marginTop: 4 }}>
-            {overloadNote(target, REP_HIGH)}
+            {overloadNote(target, top)}
           </div>
           <div style={{ fontSize: 14, fontWeight: 700, marginTop: 6, opacity: 0.9 }}>
-            A rep every 3 sessions. At {REP_HIGH} reps, add {step}kg and drop
-            back to {REP_LOW}.
+            {hold === 1 ? "A rep every session" : `A rep every ${hold} sessions`}. At{" "}
+            {top} reps, add {step}kg and drop back to {REP_LOW}.
           </div>
         </div>
 
@@ -888,6 +912,8 @@ export default function PPLHub() {
   const [sets, setSets] = useState(profile.sets || {});
   const [steps, setSteps] = useState(profile.steps || {});
   const [order, setOrder] = useState(profile.order || {});
+  const [rules, setRules] = useState(profile.rules || {});
+  const [openRules, setOpenRules] = useState(null);
   /* positions 5-7 exist only in the old seven-day rotation; fold them back in */
   const [pos, setPos] = useState(((profile.pos || 1) - 1) % CYCLE_LEN + 1);
   const [goal, setGoal] = useState(profile.goal || "maintain");
@@ -942,7 +968,7 @@ export default function PPLHub() {
   };
 
   const saveProfile = (next) => {
-    const merged = { picks, pos, goal, custom, theme, sets, steps, order, ...next };
+    const merged = { picks, pos, goal, custom, theme, sets, steps, order, rules, ...next };
     if (next.picks) setPicks(next.picks);
     if (next.pos) setPos(next.pos);
     if (next.goal) setGoal(next.goal);
@@ -950,9 +976,16 @@ export default function PPLHub() {
     if (next.sets) setSets(next.sets);
     if (next.steps) setSteps(next.steps);
     if (next.order) setOrder(next.order);
+    if (next.rules) setRules(next.rules);
     if (next.theme) setTheme(next.theme);
     persist("ppl-profile", merged);
   };
+
+  /* one exercise's own rules; anything not set falls back to the group */
+  const setRule = (name, patch) =>
+    saveProfile({
+      rules: { ...rules, [name]: { ...rulesFor(name, groupOf(name, custom), rules, sets), ...patch } },
+    });
 
   /* a new exercise goes on the list and is ticked straight away */
   const addExercise = (g, name) =>
@@ -974,7 +1007,7 @@ export default function PPLHub() {
 
   const t = today();
   const flags = days[t] || {};
-  const session = buildSession(pos, picks, custom, sets, steps, order);
+  const session = buildSession(pos, picks, custom, sets, steps, order, rules);
   const isRest = session.key === "rest";
   const cardioOn = cardioDue(goal, pos);
 
@@ -1043,6 +1076,7 @@ export default function PPLHub() {
       sets,
       steps,
       order,
+      rules,
     });
   };
 
@@ -1072,6 +1106,8 @@ export default function PPLHub() {
         name={detail}
         hist={lifts[detail]}
         step={stepFor(groupOf(detail, custom), steps)}
+        top={rulesFor(detail, groupOf(detail, custom), rules, sets).top}
+        hold={rulesFor(detail, groupOf(detail, custom), rules, sets).hold}
         onBack={() => setDetail(null)}
       />
     );
@@ -1244,7 +1280,9 @@ export default function PPLHub() {
                           ? `${counts[0]} sets each`
                           : `${counts[0]}\u2013${counts[counts.length - 1]} sets`;
                       })()}{" "}
-                      &middot; {REP_LOW}&ndash;{REP_HIGH} reps &middot; every set to failure
+                      &middot; {REP_LOW}&ndash;
+                      {Math.max(...session.items.map((i) => i.top))} reps &middot; every
+                      set to failure
                     </div>
                     {ordering ? (
                       <OrderPanel
@@ -1697,66 +1735,17 @@ export default function PPLHub() {
                 <div key={g} style={{ marginBottom: 20 }}>
                   <div
                     style={{
-                      display: "flex",
-                      alignItems: "flex-end",
-                      justifyContent: "space-between",
-                      gap: 10,
+                      fontFamily: DISPLAY,
+                      fontSize: 24,
+                      textTransform: "uppercase",
+                      letterSpacing: "-0.03em",
+                      color: TEXT,
                       borderBottom: `1px solid ${RULE}`,
                       paddingBottom: 6,
                       marginBottom: 8,
                     }}
                   >
-                    <div
-                      style={{
-                        fontFamily: DISPLAY,
-                        fontSize: 24,
-                        textTransform: "uppercase",
-                        letterSpacing: "-0.03em",
-                        color: TEXT,
-                        minWidth: 0,
-                      }}
-                    >
-                      {GROUP_NAMES[g]}
-                    </div>
-                    {/* sets per exercise for this muscle group */}
-                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                      {SET_CHOICES.map((n) => {
-                        const on = setsFor(g, sets) === n;
-                        return (
-                          <Btn
-                            key={n}
-                            plain
-                            aria={`${n} sets for ${GROUP_NAMES[g].toLowerCase()}`}
-                            onClick={() => saveProfile({ sets: { ...sets, [g]: n } })}
-                            style={{
-                              width: 40,
-                              padding: "7px 0",
-                              fontSize: 14,
-                              fontWeight: 800,
-                              borderRadius: 8,
-                              background: on ? PUSH_C : CARD,
-                              color: on ? ON_ACCENT : MUTE,
-                              border: `1px solid ${on ? PUSH_C : RULE}`,
-                            }}
-                          >
-                            {n}
-                          </Btn>
-                        );
-                      })}
-                      <div
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 800,
-                          letterSpacing: "0.08em",
-                          textTransform: "uppercase",
-                          color: MUTE,
-                          alignSelf: "center",
-                          marginLeft: 2,
-                        }}
-                      >
-                        sets
-                      </div>
-                    </div>
+                    {GROUP_NAMES[g]}
                   </div>
                   {/* how much this group adds once 13 reps are hit */}
                   <div
@@ -1778,7 +1767,7 @@ export default function PPLHub() {
                         color: MUTE,
                       }}
                     >
-                      Add at {REP_HIGH} reps
+                      Weight step
                     </div>
                     <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
                       {STEP_CHOICES.map((n) => {
@@ -1817,9 +1806,11 @@ export default function PPLHub() {
                         },
                       });
                     };
+                    const rulesOpen = openRules === name;
                     /* two separate buttons, never one inside the other */
                     return (
-                      <div key={name} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                      <div key={name}>
+                      <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
                         <Btn
                           onClick={toggle}
                           style={{
@@ -1840,6 +1831,14 @@ export default function PPLHub() {
                           <span>{name}</span>
                           <span style={{ fontSize: 22 }}>{on ? "✓" : ""}</span>
                         </Btn>
+                        {on && (
+                          <RulesButton
+                            name={name}
+                            open={rulesOpen}
+                            accent={PUSH_C}
+                            onClick={() => setOpenRules(rulesOpen ? null : name)}
+                          />
+                        )}
                         {mine && (
                           <Btn
                             aria={`Remove ${name}`}
@@ -1856,6 +1855,17 @@ export default function PPLHub() {
                             ×
                           </Btn>
                         )}
+                      </div>
+                      {on && rulesOpen && (
+                        <ExerciseRules
+                          name={name}
+                          rules={rulesFor(name, g, rules, sets)}
+                          showSets
+                          setChoices={SET_CHOICES}
+                          accent={PUSH_C}
+                          onChange={(patch) => setRule(name, patch)}
+                        />
+                      )}
                       </div>
                     );
                   })}

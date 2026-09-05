@@ -43,7 +43,7 @@ export const topSet = (hist) =>
 export const sessionsAt = (hist, w, r) =>
   new Set((hist || []).filter((s) => s.w === w && s.r >= r).map((s) => s.d)).size;
 
-export function overloadTarget(hist, { step, low, top }) {
+export function overloadTarget(hist, { step, low, top, hold = HOLD_SESSIONS }) {
   const best = topSet(hist);
   if (!best) return null;
   if (best.r >= top)
@@ -52,27 +52,38 @@ export function overloadTarget(hist, { step, low, top }) {
       r: low,
       best,
       sessions: 0,
+      hold,
       weightUp: true,
       repUp: false,
     };
   const sessions = sessionsAt(hist, best.w, best.r);
-  const repUp = sessions >= HOLD_SESSIONS;
+  const repUp = sessions >= hold;
   return {
     w: best.w,
     r: repUp ? best.r + 1 : best.r,
     best,
     sessions,
+    hold,
     weightUp: false,
     repUp,
   };
 }
 
-/* the line under the target that says where in the three this session sits */
+/* the line under the target that says where in the run this session sits */
+const ORDINAL = { 1: "first", 2: "second", 3: "third", 4: "fourth", 5: "fifth" };
+
 export function overloadNote(tgt, top) {
   if (!tgt) return "";
   if (tgt.weightUp)
     return `${tgt.best.r} reps last time — the weight goes up and the reps start again.`;
   if (tgt.repUp)
-    return `${HOLD_SESSIONS} sessions at ${tgt.best.w}kg × ${tgt.best.r} — one more rep today.`;
-  return `Session ${tgt.sessions + 1} of ${HOLD_SESSIONS} at ${tgt.best.w}kg × ${tgt.best.r}. The reps go up after the third${tgt.best.r + 1 > top ? ", and at " + top + " the weight does" : ""}.`;
+    return `${tgt.hold} ${tgt.hold === 1 ? "session" : "sessions"} at ${tgt.best.w}kg × ${tgt.best.r} — one more rep today.`;
+  return `Session ${tgt.sessions + 1} of ${tgt.hold} at ${tgt.best.w}kg × ${tgt.best.r}. The reps go up after the ${ORDINAL[tgt.hold] || tgt.hold + "th"}${tgt.best.r + 1 > top ? ", and at " + top + " the weight does" : ""}.`;
 }
+
+/* what a single exercise is allowed to choose for itself. Reps and the hold
+   are per exercise because a heavy compound and a cable movement do not
+   progress at the same pace; the kilo step stays with the muscle group. */
+export const REP_TOPS = [10, 12, 13, 15];
+export const HOLDS = [1, 2, 3, 4];
+export const DEFAULT_TOP = 13;

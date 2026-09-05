@@ -10,7 +10,15 @@ import {
   summarise,
 } from "./backup";
 import { dayNum, shiftDay, shortDate, today } from "./dates";
-import { bestPerDay, overloadNote, overloadTarget, topSet } from "./lifts";
+import {
+  DEFAULT_TOP,
+  HOLD_SESSIONS,
+  bestPerDay,
+  overloadNote,
+  overloadTarget,
+  topSet,
+} from "./lifts";
+import { ExerciseRules, RulesButton } from "./rules";
 import { Btn, SectionLabel, Stepper } from "./ui";
 import { TrendChart, WeekBars } from "./charts";
 import { WeightPanel } from "./weight";
@@ -180,7 +188,7 @@ function byStalest(names, lifts) {
  * chest, back and biceps, a single set each. That keeps a full-body day at the
  * volume it was designed for however many exercises are ticked.
  */
-function buildSession(week, day, picks, custom, lifts, steps, order) {
+function buildSession(week, day, picks, custom, lifts, steps, order, rules) {
   const spec = PLAN[week][day];
   const hardRules = week === 1 || spec.week1Rules;
   const groups = [...spec.groups, "abs"];
@@ -192,7 +200,13 @@ function buildSession(week, day, picks, custom, lifts, steps, order) {
 
     if (hardRules) {
       chosen.forEach((name) =>
-        items.push({ group: g, name, sets: 3, step: stepFor(g, steps) })
+        items.push({
+          group: g,
+          name,
+          sets: 3,
+          step: stepFor(g, steps),
+          ...rulesFor(name, rules),
+        })
       );
       return;
     }
@@ -202,7 +216,13 @@ function buildSession(week, day, picks, custom, lifts, steps, order) {
     /* only one ticked where two were wanted: it carries both sets itself */
     const sets = Math.ceil(slots / picked.length);
     picked.forEach((name) =>
-      items.push({ group: g, name, sets, step: stepFor(g, steps) })
+      items.push({
+        group: g,
+        name,
+        sets,
+        step: stepFor(g, steps),
+        ...rulesFor(name, rules),
+      })
     );
   });
 
@@ -225,9 +245,17 @@ const advance = (pos) =>
 /* progressive overload, on this app's rep range: a rep every third session at
    the same weight, and at 13 the weight goes up by the group's step */
 const REP_LOW = 8;
-const REP_HIGH = 13;
-const nextTarget = (hist, step = DEFAULT_STEP) =>
-  overloadTarget(hist, { step, low: REP_LOW, top: REP_HIGH });
+const REP_HIGH = DEFAULT_TOP;
+const nextTarget = (hist, step = DEFAULT_STEP, top = REP_HIGH, hold = HOLD_SESSIONS) =>
+  overloadTarget(hist, { step, low: REP_LOW, top, hold });
+
+/* The rep count that moves the weight and how long a target is held belong to
+   the exercise. Sets do not: this plan works them out from the week - three on
+   a hard day, one or two a group on a full-body one - so they stay there. */
+const rulesFor = (name, rules) => {
+  const r = (rules && rules[name]) || {};
+  return { top: r.top || REP_HIGH, hold: r.hold || HOLD_SESSIONS };
+};
 
 /* ============================ add an exercise ============================ */
 
@@ -296,7 +324,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
   const [idx, setIdx] = useState(0);
   const [entries, setEntries] = useState(() =>
     session.items.map((it) => {
-      const tgt = nextTarget(lifts[it.name], it.step);
+      const tgt = nextTarget(lifts[it.name], it.step, it.top, it.hold);
       return Array.from({ length: it.sets }, () => ({
         w: tgt ? tgt.w : 20,
         r: tgt ? tgt.r : 10,
@@ -307,7 +335,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
 
   const item = session.items[idx];
   const name = item.name;
-  const target = nextTarget(lifts[name], item.step);
+  const target = nextTarget(lifts[name], item.step, item.top, item.hold);
   const last = target && target.best;
   const sets = entries[idx];
 
@@ -445,7 +473,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
           </div>
           {last && (
             <div style={{ fontSize: 14, fontWeight: 700, marginTop: 4 }}>
-              {overloadNote(target, REP_HIGH)}
+              {overloadNote(target, item.top)}
             </div>
           )}
         </div>
@@ -471,7 +499,7 @@ function Session({ session, lifts, onFinish, onQuit }) {
                 marginBottom: 8,
               }}
             >
-              Set {si + 1} &middot; {REP_LOW}&ndash;{REP_HIGH} reps
+              Set {si + 1} &middot; {REP_LOW}&ndash;{item.top} reps
             </div>
             <div style={{ display: "grid", gap: 10 }}>
               <Stepper
@@ -540,11 +568,11 @@ function Session({ session, lifts, onFinish, onQuit }) {
 
 /* ============================ overload detail ============================ */
 
-function ExerciseDetail({ name, hist, step = DEFAULT_STEP, onBack }) {
+function ExerciseDetail({ name, hist, step = DEFAULT_STEP, top = REP_HIGH, hold = HOLD_SESSIONS, onBack }) {
   const [picked, setPicked] = useState(null);
   const sessions = bestPerDay(hist);
   const first = sessions[0];
-  const target = nextTarget(hist, step);
+  const target = nextTarget(hist, step, top, hold);
   const best = target && target.best;
   const recent = sessions.slice(-12).reverse();
   const maxVol = Math.max(...recent.map((s) => s.w * s.r), 1);
@@ -596,11 +624,11 @@ function ExerciseDetail({ name, hist, step = DEFAULT_STEP, onBack }) {
             {target ? `${target.w}kg × ${target.r}` : "—"}
           </div>
           <div style={{ fontSize: 14, fontWeight: 700, marginTop: 4 }}>
-            {overloadNote(target, REP_HIGH)}
+            {overloadNote(target, top)}
           </div>
           <div style={{ fontSize: 14, fontWeight: 700, marginTop: 6, opacity: 0.9 }}>
-            A rep every 3 sessions. At {REP_HIGH} reps, add {step}kg and drop
-            back to {REP_LOW}.
+            {hold === 1 ? "A rep every session" : `A rep every ${hold} sessions`}. At{" "}
+            {top} reps, add {step}kg and drop back to {REP_LOW}.
           </div>
         </div>
 
@@ -932,6 +960,8 @@ export default function WorkoutHub() {
   const [ordering, setOrdering] = useState(false);
   const [steps, setSteps] = useState(profile.steps || {});
   const [order, setOrder] = useState(profile.order || {});
+  const [rules, setRules] = useState(profile.rules || {});
+  const [openRules, setOpenRules] = useState(null);
 
   const persist = (key, value) => {
     try {
@@ -946,13 +976,14 @@ export default function WorkoutHub() {
   /* one merged write, so a screen can change one thing without restating the
      rest of the profile */
   const saveProfile = (next) => {
-    const merged = { picks, pos, custom, theme, steps, order, ...next };
+    const merged = { picks, pos, custom, theme, steps, order, rules, ...next };
     if (next.picks) setPicks(next.picks);
     if (next.pos) setPos(next.pos);
     if (next.custom) setCustom(next.custom);
     if (next.theme) setTheme(next.theme);
     if (next.steps) setSteps(next.steps);
     if (next.order) setOrder(next.order);
+    if (next.rules) setRules(next.rules);
     persist("wk-profile", merged);
   };
 
@@ -989,7 +1020,11 @@ export default function WorkoutHub() {
     persist("wk-days", next);
   };
 
-  const session = buildSession(pos.week, pos.day, picks, custom, lifts, steps, order);
+  const session = buildSession(pos.week, pos.day, picks, custom, lifts, steps, order, rules);
+
+  /* one exercise's own progression rules */
+  const setRule = (name, patch) =>
+    saveProfile({ rules: { ...rules, [name]: { ...rulesFor(name, rules), ...patch } } });
 
   /* The running order is saved per day of the plan. Swapping neighbours keeps
      every name in the list, which dragging on a small screen does not. */
@@ -1025,7 +1060,7 @@ export default function WorkoutHub() {
 
     persist("wk-lifts", nextLifts);
     persist("wk-days", nextDays);
-    persist("wk-profile", { picks, pos: nextPos, custom, theme, steps, order });
+    persist("wk-profile", { picks, pos: nextPos, custom, theme, steps, order, rules });
   };
 
   const reportMetrics = [
@@ -1081,6 +1116,8 @@ export default function WorkoutHub() {
         name={detail}
         hist={lifts[detail]}
         step={stepFor(groupOf(detail, custom), steps)}
+        top={rulesFor(detail, rules).top}
+        hold={rulesFor(detail, rules).hold}
         onBack={() => setDetail(null)}
       />
     );
@@ -1265,7 +1302,7 @@ export default function WorkoutHub() {
               }}
             >
               {session.toFailure
-                ? "3 sets · 8–13 reps · to true failure"
+                ? `3 sets · ${REP_LOW}–${Math.max(...session.items.map((i) => i.top))} reps · to true failure`
                 : "1 exercise per group, 2 for chest/back/biceps · 1 set each · stop close to failure"}
             </div>
 
@@ -1711,7 +1748,7 @@ export default function WorkoutHub() {
                       color: MUTE,
                     }}
                   >
-                    Add at {REP_HIGH} reps
+                    Weight step
                   </div>
                   <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
                     {STEP_CHOICES.map((n) => {
@@ -1750,9 +1787,11 @@ export default function WorkoutHub() {
                       },
                     });
                   };
+                  const rulesOpen = openRules === name;
                   /* two separate buttons, never one inside the other */
                   return (
-                    <div key={name} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                    <div key={name}>
+                    <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
                       <Btn
                         onClick={toggle}
                         style={{
@@ -1773,6 +1812,14 @@ export default function WorkoutHub() {
                         <span>{name}</span>
                         <span style={{ fontSize: 22 }}>{on ? "✓" : ""}</span>
                       </Btn>
+                      {on && (
+                        <RulesButton
+                          name={name}
+                          open={rulesOpen}
+                          accent={PUSH}
+                          onClick={() => setOpenRules(rulesOpen ? null : name)}
+                        />
+                      )}
                       {mine && (
                         <Btn
                           aria={`Remove ${name}`}
@@ -1789,6 +1836,15 @@ export default function WorkoutHub() {
                           ×
                         </Btn>
                       )}
+                    </div>
+                    {on && rulesOpen && (
+                      <ExerciseRules
+                        name={name}
+                        rules={rulesFor(name, rules)}
+                        accent={PUSH}
+                        onChange={(patch) => setRule(name, patch)}
+                      />
+                    )}
                     </div>
                   );
                 })}
