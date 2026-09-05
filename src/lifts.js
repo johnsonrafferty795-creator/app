@@ -84,6 +84,5 @@ export function overloadNote(tgt, top) {
 /* what a single exercise is allowed to choose for itself. Reps and the hold
    are per exercise because a heavy compound and a cable movement do not
    progress at the same pace; the kilo step stays with the muscle group. */
-export const REP_TOPS = [10, 12, 13, 15];
 export const HOLDS = [1, 2, 3, 4];
 export const DEFAULT_TOP = 13;

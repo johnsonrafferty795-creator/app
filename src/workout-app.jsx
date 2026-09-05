@@ -1841,6 +1841,7 @@ export default function WorkoutHub() {
                       <ExerciseRules
                         name={name}
                         rules={rulesFor(name, rules)}
+                        minTop={REP_LOW + 1}
                         accent={PUSH}
                         onChange={(patch) => setRule(name, patch)}
                       />

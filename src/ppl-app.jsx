@@ -1862,6 +1862,7 @@ export default function PPLHub() {
                           rules={rulesFor(name, g, rules, sets)}
                           showSets
                           setChoices={SET_CHOICES}
+                          minTop={REP_LOW + 1}
                           accent={PUSH_C}
                           onChange={(patch) => setRule(name, patch)}
                         />

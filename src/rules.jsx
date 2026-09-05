@@ -1,6 +1,8 @@
-import { HOLDS, REP_TOPS } from "./lifts";
+import { useState } from "react";
+
+import { HOLDS } from "./lifts";
 import { Btn } from "./ui";
-import { CARD, MUTE, ON_ACCENT, PUSH_C, RULE, TEXT, WASH } from "./tokens";
+import { CARD, DISPLAY, MUTE, ON_ACCENT, PUSH_C, RULE, TEXT, WASH } from "./tokens";
 
 /* ---- per-exercise rules ----
  * Sets, the rep count that moves the weight, and how many sessions a target is
@@ -10,7 +12,7 @@ import { CARD, MUTE, ON_ACCENT, PUSH_C, RULE, TEXT, WASH } from "./tokens";
  * the plates and the stack rather than the movement.
  */
 
-export function ChoiceRow({ label, choices, value, onPick, aria, suffix, accent = PUSH_C }) {
+function SettingRow({ label, children }) {
   return (
     <div
       style={{
@@ -33,6 +35,76 @@ export function ChoiceRow({ label, choices, value, onPick, aria, suffix, accent 
       >
         {label}
       </div>
+      {children}
+    </div>
+  );
+}
+
+/* A rep count is a number, not a shortlist: four buttons could not hold every
+   count worth training to, so this one is typed. The arrows are still there
+   for a one-rep nudge, which is what most changes here are. */
+export function NumberField({ value, min, max, onChange, aria, accent = PUSH_C }) {
+  /* keep whatever is being typed while the field has focus, so a half-typed
+     number is not parsed back into the box mid-keystroke */
+  const [text, setText] = useState(null);
+  const clamp = (n) => Math.min(max, Math.max(min, n));
+  const btn = {
+    width: 40,
+    height: 40,
+    padding: 0,
+    fontSize: 22,
+    lineHeight: 1,
+    flexShrink: 0,
+    background: CARD,
+    color: TEXT,
+    border: `1px solid ${RULE}`,
+    borderRadius: 8,
+  };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+      <Btn aria={`One rep fewer for ${aria}`} onClick={() => onChange(clamp(value - 1))} style={btn}>
+        &minus;
+      </Btn>
+      <input
+        value={text === null ? String(value) : text}
+        onFocus={(e) => {
+          setText(String(value));
+          e.target.select();
+        }}
+        onChange={(e) => {
+          const t = e.target.value.replace(/[^0-9]/g, "").slice(0, 2);
+          setText(t);
+          const n = parseInt(t, 10);
+          if (!isNaN(n) && n >= min && n <= max) onChange(n);
+        }}
+        onBlur={() => setText(null)}
+        inputMode="numeric"
+        aria-label={`Reps that move ${aria} up`}
+        style={{
+          width: 52,
+          textAlign: "center",
+          fontFamily: DISPLAY,
+          fontSize: 20,
+          letterSpacing: "-0.02em",
+          color: TEXT,
+          background: CARD,
+          border: `1px solid ${accent}`,
+          borderRadius: 8,
+          padding: "8px 0",
+          outline: "none",
+        }}
+      />
+      <span style={{ fontSize: 13, fontWeight: 800, color: MUTE }}>reps</span>
+      <Btn aria={`One rep more for ${aria}`} onClick={() => onChange(clamp(value + 1))} style={btn}>
+        +
+      </Btn>
+    </div>
+  );
+}
+
+export function ChoiceRow({ label, choices, value, onPick, aria, suffix, accent = PUSH_C }) {
+  return (
+    <SettingRow label={label}>
       <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
         {choices.map((n) => {
           const on = value === n;
@@ -58,11 +130,11 @@ export function ChoiceRow({ label, choices, value, onPick, aria, suffix, accent 
           );
         })}
       </div>
-    </div>
+    </SettingRow>
   );
 }
 
-export function ExerciseRules({ name, rules, showSets, setChoices, onChange, accent }) {
+export function ExerciseRules({ name, rules, showSets, setChoices, minTop, onChange, accent }) {
   const low = name.toLowerCase();
   return (
     <div
@@ -84,15 +156,16 @@ export function ExerciseRules({ name, rules, showSets, setChoices, onChange, acc
           aria={(n) => `${n} sets of ${low}`}
         />
       )}
-      <ChoiceRow
-        label="Weight up at"
-        choices={REP_TOPS}
-        value={rules.top}
-        accent={accent}
-        onPick={(n) => onChange({ top: n })}
-        aria={(n) => `Move ${low} up at ${n} reps`}
-        suffix=" reps"
-      />
+      <SettingRow label="Weight up at">
+        <NumberField
+          value={rules.top}
+          min={minTop}
+          max={50}
+          accent={accent}
+          aria={low}
+          onChange={(n) => onChange({ top: n })}
+        />
+      </SettingRow>
       <ChoiceRow
         label="Hold each target"
         choices={HOLDS}
