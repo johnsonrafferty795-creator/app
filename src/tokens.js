@@ -8,6 +8,8 @@ export const CARD = "var(--card)";
 export const WASH = "var(--wash)";
 export const RAISED = "var(--raised)";
 export const RULE = "var(--rule)";
+/* a step up from RULE, for lines that are the structure rather than an edge */
+export const LINE = "var(--line)";
 export const MUTE = "var(--mute)";
 export const TEXT = "var(--text)";
 export const GRID = "var(--grid)";

@@ -8,7 +8,6 @@ import { Btn, SectionLabel } from "./ui";
 import { WeightPanel } from "./weight";
 import { MONTH_NAMES, MonthGrid, daysInMonth, iso } from "./month";
 import {
-  ACCENT_TEXT,
   BAT_THEMES,
   BG,
   BODY,
@@ -16,6 +15,7 @@ import {
   DISPLAY,
   INK,
   LEGS_C,
+  LINE,
   MUTE,
   ON_ACCENT,
   PULL_C,
@@ -264,9 +264,9 @@ function Overload({ name, hist, onLog, onRemove, onBack }) {
  * long enough now that scrolling it is the slow way to reach anything.
  */
 
-function SearchBar({ value, onChange, count, plain }) {
+function SearchBar({ value, onChange, count }) {
   return (
-    <div style={{ marginBottom: plain ? 0 : 12 }}>
+    <div>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -275,12 +275,12 @@ function SearchBar({ value, onChange, count, plain }) {
         style={{
           width: "100%",
           boxSizing: "border-box",
-          padding: plain ? "16px 2px" : "16px 14px",
+          padding: "16px 2px",
           fontSize: 17,
-          background: plain ? "transparent" : CARD,
-          border: plain ? "none" : `1px solid ${RULE}`,
-          borderBottom: `1px solid ${RULE}`,
-          borderRadius: plain ? 0 : 12,
+          background: "transparent",
+          border: "none",
+          borderBottom: `1px solid ${LINE}`,
+          borderRadius: 0,
           outline: "none",
         }}
       />
@@ -294,136 +294,52 @@ function SearchBar({ value, onChange, count, plain }) {
   );
 }
 
-function ExerciseList({ variant, names, lifts, onOpen }) {
+function ExerciseList({ names, lifts, onOpen }) {
   const lastOf = (n) => {
     const h = lifts[n];
     return h && h.length ? h[h.length - 1].w : null;
   };
 
-  /* A - stacked: the weight gets its own line under the name */
-  if (variant === "a")
-    return names.map((name) => {
-      const w = lastOf(name);
-      return (
-        <Btn
-          key={name}
-          onClick={() => onOpen(name)}
-          style={{ width: "100%", display: "flex", justifyContent: "space-between",
-            alignItems: "center", gap: 12, background: CARD, color: TEXT,
-            border: `1px solid ${RULE}`, borderRadius: 14, padding: "20px 16px",
-            marginBottom: 10, textAlign: "left" }}
-        >
-          <span style={{ minWidth: 0, lineHeight: 1.25 }}>
-            <span style={{ fontSize: 19, display: "block" }}>{name}</span>
-            <span style={{ fontFamily: BODY, fontSize: 14, fontWeight: 700, color: MUTE,
-              textTransform: "none", letterSpacing: 0, display: "block", marginTop: 4 }}>
-              {w != null ? `Last ${w}kg` : "Nothing logged yet"}
-            </span>
-          </span>
-          <span style={{ flexShrink: 0, fontSize: 22, color: MUTE }}>›</span>
-        </Btn>
-      );
-    });
-
-  /* B - rules: no boxes at all, just air and a hairline between */
-  if (variant === "b")
-    return names.map((name, i) => {
-      const w = lastOf(name);
-      return (
-        <Btn
-          key={name}
-          onClick={() => onOpen(name)}
-          style={{ width: "100%", display: "flex", justifyContent: "space-between",
-            alignItems: "baseline", gap: 12, background: "transparent", color: TEXT,
-            border: "none", borderTop: i === 0 ? "none" : `1px solid ${RULE}`,
-            borderRadius: 0, padding: "26px 2px", textAlign: "left", fontSize: 20 }}
-        >
-          <span style={{ minWidth: 0 }}>{name}</span>
-          <span style={{ flexShrink: 0, fontSize: 18, color: w != null ? TEXT : MUTE }}>
-            {w != null ? `${w}kg` : "—"}
-            <span style={{ color: MUTE }}>  ›</span>
-          </span>
-        </Btn>
-      );
-    });
-
-  /* C - spec sheet: the number is the point, so it is set like one */
-  if (variant === "c")
-    return names.map((name) => {
-      const w = lastOf(name);
-      return (
-        <Btn
-          key={name}
-          onClick={() => onOpen(name)}
-          className="orn"
-          style={{ width: "100%", display: "flex", justifyContent: "space-between",
-            alignItems: "center", gap: 14, background: CARD, color: TEXT,
-            border: `1px solid ${RULE}`, borderRadius: 14, padding: "22px 16px",
-            marginBottom: 10, textAlign: "left", position: "relative" }}
-        >
-          <span style={{ minWidth: 0, fontSize: 17, lineHeight: 1.25 }}>{name}</span>
-          <span style={{ flexShrink: 0, display: "flex", alignItems: "baseline", gap: 6 }}>
-            <span style={{ fontFamily: DISPLAY, fontSize: 28, fontWeight: 800,
-              letterSpacing: "-0.02em", color: w != null ? TEXT : MUTE }}>
-              {w != null ? w : "—"}
-            </span>
-            <span style={{ fontSize: 13, fontWeight: 800, color: MUTE }}>
-              {w != null ? "KG" : ""}
-            </span>
-          </span>
-        </Btn>
-      );
-    });
-
-  /* E - two across with nothing drawn round it: the grid lines are the only
-     structure, the way a lit edge is the only thing marking a wall */
-  if (variant === "e")
-    return (
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
-        {names.map((name, i) => {
-          const w = lastOf(name);
-          return (
-            <Btn
-              key={name}
-              onClick={() => onOpen(name)}
-              style={{ display: "flex", flexDirection: "column", alignItems: "flex-start",
-                gap: 10, background: "transparent", color: TEXT, borderRadius: 0,
-                border: "none",
-                borderTop: i >= 2 ? `1px solid ${RULE}` : "none",
-                borderRight: i % 2 === 0 ? `1px solid ${RULE}` : "none",
-                padding: i % 2 === 0 ? "20px 14px 22px 2px" : "20px 2px 22px 14px",
-                textAlign: "left", fontSize: 15, lineHeight: 1.25 }}
-            >
-              {/* two lines held open whether the name needs them or not, so the
-                  weights all sit on one baseline and the grid stays even */}
-              <span style={{ minWidth: 0, minHeight: 38 }}>{name}</span>
-              <span style={{ fontFamily: DISPLAY, fontSize: 20, fontWeight: 800,
-                letterSpacing: "-0.02em", color: w != null ? TEXT : MUTE }}>
-                {w != null ? `${w}kg` : "—"}
-              </span>
-            </Btn>
-          );
-        })}
-      </div>
-    );
-
-  /* D - tiles: two across, so a long list is half as far to scroll */
+  /* Two across with nothing drawn round a cell: the rules between them are
+     the only structure, which is the same move as a lit edge on a dark wall.
+     Ten exercises to a screen rather than six, and no boxes to read past. */
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-      {names.map((name) => {
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+      {names.map((name, i) => {
         const w = lastOf(name);
         return (
           <Btn
             key={name}
             onClick={() => onOpen(name)}
-            style={{ display: "flex", flexDirection: "column", justifyContent: "space-between",
-              alignItems: "flex-start", gap: 14, minHeight: 116, background: CARD, color: TEXT,
-              border: `1px solid ${RULE}`, borderRadius: 14, padding: "16px 14px",
-              textAlign: "left", fontSize: 15, lineHeight: 1.2 }}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-start",
+              gap: 10,
+              background: "transparent",
+              color: TEXT,
+              borderRadius: 0,
+              border: "none",
+              borderTop: i >= 2 ? `1px solid ${LINE}` : "none",
+              borderRight: i % 2 === 0 ? `1px solid ${LINE}` : "none",
+              padding: i % 2 === 0 ? "20px 14px 22px 2px" : "20px 2px 22px 14px",
+              textAlign: "left",
+              fontSize: 15,
+              lineHeight: 1.25,
+            }}
           >
-            <span style={{ minWidth: 0 }}>{name}</span>
-            <span style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 800,
-              letterSpacing: "-0.02em", color: w != null ? TEXT : MUTE }}>
+            {/* two lines held open whether the name needs them or not, so the
+                weights all sit on one baseline and the grid stays even */}
+            <span style={{ minWidth: 0, minHeight: 38 }}>{name}</span>
+            <span
+              style={{
+                fontFamily: DISPLAY,
+                fontSize: 20,
+                fontWeight: 800,
+                letterSpacing: "-0.02em",
+                color: w != null ? TEXT : MUTE,
+              }}
+            >
               {w != null ? `${w}kg` : "—"}
             </span>
           </Btn>
@@ -482,14 +398,6 @@ export default function GothamApp() {
   const [tab, setTab] = useState("overload");
   const [open, setOpen] = useState(null);
   const [query, setQuery] = useState("");
-  /* which of the four list layouts to draw, while one is being chosen */
-  const [listv] = useState(() => {
-    try {
-      return localStorage.getItem("ppl-listv") || "a";
-    } catch (e) {
-      return "a";
-    }
-  });
   const [saveError, setSaveError] = useState(false);
 
   const profile = loadJSON("ppl-profile", {});
@@ -646,14 +554,13 @@ export default function GothamApp() {
               value={query}
               onChange={setQuery}
               count={query ? null : exercises.length}
-              plain={listv === "b" || listv === "e"}
             />
             {exercises.length === 0 && (
               <div style={{ fontSize: 16, color: MUTE, lineHeight: 1.4, marginBottom: 4 }}>
                 Nothing on the list yet. Add the first one below.
               </div>
             )}
-            <ExerciseList variant={listv} names={shown} lifts={lifts} onOpen={setOpen} />
+            <ExerciseList names={shown} lifts={lifts} onOpen={setOpen} />
             {query && shown.length === 0 && (
               <div style={{ fontSize: 16, color: MUTE, lineHeight: 1.4, padding: "8px 0 2px" }}>
                 Nothing matches &ldquo;{query}&rdquo;.

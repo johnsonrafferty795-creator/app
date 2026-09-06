@@ -20,6 +20,7 @@
   --wash: #1b2027;
   --raised: #212833;
   --rule: #2c333e;
+  --line: #3b4453;
   --mute: #98a2b3;
   --text: #f3f5f8;
   --grid: #242b35;
@@ -53,6 +54,7 @@
   --wash: #1f1f22;
   --raised: #26262a;
   --rule: #3c3c41;
+  --line: #4c4c52;
   --mute: #9d9a94;
   --text: #efece5;
   --grid: #2a2a2e;
@@ -96,6 +98,9 @@
   --wash: #15171a;
   --raised: #1b1e22;
   --rule: #24272c;
+  /* the grid lines are the only structure that list has, so they get a
+     step more presence than a card border - seen, not lit */
+  --line: #363d49;
   --mute: #8e959e;
   --text: #edf1f6;
   --grid: #1e2126;
@@ -139,6 +144,7 @@
   --wash: #1c1a16;
   --raised: #232019;
   --rule: #2f2b24;
+  --line: #443d31;
   --mute: #a39c90;
   --text: #f5f2ea;
   --grid: #272419;
