@@ -29,11 +29,11 @@ const META = {
     theme: "#0B0C0F",
   },
   ppl: {
-    name: "PPL",
-    short: "PPL",
-    description: "Push pull legs, progressive overload, and body weight.",
-    background: "#0B0C0F",
-    theme: "#0B0C0F",
+    name: "Gotham",
+    short: "Gotham",
+    description: "Progressive overload, body weight, and the month in blocks.",
+    background: "#070809",
+    theme: "#070809",
   },
   winter: {
     name: "Winter Arc",

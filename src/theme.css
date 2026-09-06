@@ -80,6 +80,90 @@
   --caret: #c9424b;
 }
 
+/* ---- the cave ----
+ * Not the comic and not the deco Gotham: the reference is the modern one -
+ * poured concrete, black marble, matte graphite, and hard thin strips of cold
+ * light. Almost no colour anywhere. Surfaces sit within a few points of each
+ * other and separate by tone rather than hue, and the only bright thing in
+ * the palette is the light itself, which is why it carries every accent.
+ */
+:root[data-theme="cave"] {
+  color-scheme: dark;
+
+  --bg: #070809;
+  --ink: #0b0c0e;
+  --card: #101215;
+  --wash: #15171a;
+  --raised: #1b1e22;
+  --rule: #24272c;
+  --mute: #8e959e;
+  --text: #edf1f6;
+  --grid: #1e2126;
+
+  /* the light, and two steps down from it: a monochrome scale rather than
+     three colours, because the reference has no second colour to give them */
+  --push: #e8eef7;
+  --pull: #98a6b8;
+  --legs: #7c8794;
+  --rest: #3a4048;
+  --win: #e8eef7;
+  --warn: #c96a5e;
+  --on-accent: #070809;
+
+  --chart: #c7d3e2;
+  --chart-ok: #e8eef7;
+  --good-text: #c7d3e2;
+  --accent-text: #c7d3e2;
+
+  --display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Inter, system-ui, sans-serif;
+  --body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Inter, system-ui, sans-serif;
+  --figures: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --caret: #c7d3e2;
+  /* a lit strip, the way those ceilings are lit: hard, thin, cold */
+  --edge: linear-gradient(90deg, transparent, #a9c6e8 22%, #dce9f8 50%, #a9c6e8 78%, transparent);
+  --glow: rgba(169, 198, 232, 0.22);
+}
+
+/* ---- the penthouse ----
+ * The same room in warmer light. Black marble instead of concrete, a warm
+ * white strip instead of a cold one, surfaces a shade further apart. Still
+ * monochrome: the difference between the two halves of him is the temperature
+ * of the light, not a change of colour.
+ */
+:root[data-theme="penthouse"] {
+  color-scheme: dark;
+
+  --bg: #0b0a08;
+  --ink: #100e0c;
+  --card: #171512;
+  --wash: #1c1a16;
+  --raised: #232019;
+  --rule: #2f2b24;
+  --mute: #a39c90;
+  --text: #f5f2ea;
+  --grid: #272419;
+
+  --push: #f3efe4;
+  --pull: #b3ac9d;
+  --legs: #928b7d;
+  --rest: #443f36;
+  --win: #f3efe4;
+  --warn: #c0705f;
+  --on-accent: #0a0a0b;
+
+  --chart: #d6cfc0;
+  --chart-ok: #f3efe4;
+  --good-text: #d6cfc0;
+  --accent-text: #d6cfc0;
+
+  --display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Inter, system-ui, sans-serif;
+  --body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Inter, system-ui, sans-serif;
+  --figures: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --caret: #cfcac1;
+  --edge: linear-gradient(90deg, transparent, #c9c2b4 22%, #f2ece0 50%, #c9c2b4 78%, transparent);
+  --glow: rgba(201, 194, 180, 0.18);
+}
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -127,4 +211,28 @@ input::placeholder {
 
 :root {
   --rosette: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cg fill='none' stroke='%236f6a61' stroke-width='1'%3E%3Ccircle cx='8' cy='8' r='6.5'/%3E%3Cpath d='M8 3.2 11 8 8 12.8 5 8Z'/%3E%3C/g%3E%3Ccircle cx='8' cy='8' r='1.3' fill='%236f6a61'/%3E%3C/svg%3E");
+}
+
+/* ---- ornament, the modern Gotham ----
+ * One move, borrowed straight from the rooms: a hard thin strip of light
+ * along the top edge of a panel, with just enough spill to read as lit rather
+ * than drawn. .cut takes the corner off a header the way those ceilings and
+ * plinths are cut - a straight diagonal, never a curve.
+ */
+:root[data-theme="cave"] .orn::after,
+:root[data-theme="penthouse"] .orn::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 0;
+  height: 1px;
+  pointer-events: none;
+  background: var(--edge);
+  box-shadow: 0 0 10px 1px var(--glow);
+}
+
+:root[data-theme="cave"] .cut,
+:root[data-theme="penthouse"] .cut {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 22px), calc(100% - 22px) 100%, 0 100%);
 }

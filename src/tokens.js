@@ -34,9 +34,16 @@ export const BODY = "var(--body)";
    serif reads as a b, which is no good on an axis */
 export const FIGURES = "var(--figures)";
 
+/* Each app offers its own pair. The original tracker keeps steel and gothic;
+   the other one runs Gotham - the cowl and the man who pays for it. */
 export const THEMES = {
   steel: { label: "Steel", note: "Blue on black." },
   gothic: { label: "Gothic", note: "Iron, bone and blood red." },
+};
+
+export const BAT_THEMES = {
+  cave: { label: "Cave", note: "Concrete, glass and cold light." },
+  penthouse: { label: "Penthouse", note: "The same room, warmer light." },
 };
 
 /* Paint the root, and keep the iOS status bar in step with it. */
