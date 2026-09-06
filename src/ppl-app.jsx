@@ -258,11 +258,156 @@ function Overload({ name, hist, onLog, onRemove, onBack }) {
   );
 }
 
+/* ============================ the list, four ways ============================
+ * Four ways to lay out the same list, kept side by side while one is chosen.
+ * All four share the search, which is the point of the exercise: the list is
+ * long enough now that scrolling it is the slow way to reach anything.
+ */
+
+function SearchBar({ value, onChange, count, plain }) {
+  return (
+    <div style={{ marginBottom: plain ? 0 : 12 }}>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Search"
+        aria-label="Search exercises"
+        style={{
+          width: "100%",
+          boxSizing: "border-box",
+          padding: plain ? "16px 2px" : "16px 14px",
+          fontSize: 17,
+          background: plain ? "transparent" : CARD,
+          border: plain ? "none" : `1px solid ${RULE}`,
+          borderBottom: `1px solid ${RULE}`,
+          borderRadius: plain ? 0 : 12,
+          outline: "none",
+        }}
+      />
+      {count != null && (
+        <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: "0.12em",
+          textTransform: "uppercase", color: MUTE, marginTop: 10 }}>
+          {count} exercise{count === 1 ? "" : "s"}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ExerciseList({ variant, names, lifts, onOpen }) {
+  const lastOf = (n) => {
+    const h = lifts[n];
+    return h && h.length ? h[h.length - 1].w : null;
+  };
+
+  /* A - stacked: the weight gets its own line under the name */
+  if (variant === "a")
+    return names.map((name) => {
+      const w = lastOf(name);
+      return (
+        <Btn
+          key={name}
+          onClick={() => onOpen(name)}
+          style={{ width: "100%", display: "flex", justifyContent: "space-between",
+            alignItems: "center", gap: 12, background: CARD, color: TEXT,
+            border: `1px solid ${RULE}`, borderRadius: 14, padding: "20px 16px",
+            marginBottom: 10, textAlign: "left" }}
+        >
+          <span style={{ minWidth: 0, lineHeight: 1.25 }}>
+            <span style={{ fontSize: 19, display: "block" }}>{name}</span>
+            <span style={{ fontFamily: BODY, fontSize: 14, fontWeight: 700, color: MUTE,
+              textTransform: "none", letterSpacing: 0, display: "block", marginTop: 4 }}>
+              {w != null ? `Last ${w}kg` : "Nothing logged yet"}
+            </span>
+          </span>
+          <span style={{ flexShrink: 0, fontSize: 22, color: MUTE }}>›</span>
+        </Btn>
+      );
+    });
+
+  /* B - rules: no boxes at all, just air and a hairline between */
+  if (variant === "b")
+    return names.map((name, i) => {
+      const w = lastOf(name);
+      return (
+        <Btn
+          key={name}
+          onClick={() => onOpen(name)}
+          style={{ width: "100%", display: "flex", justifyContent: "space-between",
+            alignItems: "baseline", gap: 12, background: "transparent", color: TEXT,
+            border: "none", borderTop: i === 0 ? "none" : `1px solid ${RULE}`,
+            borderRadius: 0, padding: "26px 2px", textAlign: "left", fontSize: 20 }}
+        >
+          <span style={{ minWidth: 0 }}>{name}</span>
+          <span style={{ flexShrink: 0, fontSize: 18, color: w != null ? TEXT : MUTE }}>
+            {w != null ? `${w}kg` : "—"}
+            <span style={{ color: MUTE }}>  ›</span>
+          </span>
+        </Btn>
+      );
+    });
+
+  /* C - spec sheet: the number is the point, so it is set like one */
+  if (variant === "c")
+    return names.map((name) => {
+      const w = lastOf(name);
+      return (
+        <Btn
+          key={name}
+          onClick={() => onOpen(name)}
+          className="orn"
+          style={{ width: "100%", display: "flex", justifyContent: "space-between",
+            alignItems: "center", gap: 14, background: CARD, color: TEXT,
+            border: `1px solid ${RULE}`, borderRadius: 14, padding: "22px 16px",
+            marginBottom: 10, textAlign: "left", position: "relative" }}
+        >
+          <span style={{ minWidth: 0, fontSize: 17, lineHeight: 1.25 }}>{name}</span>
+          <span style={{ flexShrink: 0, display: "flex", alignItems: "baseline", gap: 6 }}>
+            <span style={{ fontFamily: DISPLAY, fontSize: 28, fontWeight: 800,
+              letterSpacing: "-0.02em", color: w != null ? TEXT : MUTE }}>
+              {w != null ? w : "—"}
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 800, color: MUTE }}>
+              {w != null ? "KG" : ""}
+            </span>
+          </span>
+        </Btn>
+      );
+    });
+
+  /* D - tiles: two across, so a long list is half as far to scroll */
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      {names.map((name) => {
+        const w = lastOf(name);
+        return (
+          <Btn
+            key={name}
+            onClick={() => onOpen(name)}
+            style={{ display: "flex", flexDirection: "column", justifyContent: "space-between",
+              alignItems: "flex-start", gap: 14, minHeight: 116, background: CARD, color: TEXT,
+              border: `1px solid ${RULE}`, borderRadius: 14, padding: "16px 14px",
+              textAlign: "left", fontSize: 15, lineHeight: 1.2 }}
+          >
+            <span style={{ minWidth: 0 }}>{name}</span>
+            <span style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 800,
+              letterSpacing: "-0.02em", color: w != null ? TEXT : MUTE }}>
+              {w != null ? `${w}kg` : "—"}
+            </span>
+          </Btn>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ============================ add an exercise ============================ */
 
-function AddExercise({ existing, onAdd }) {
+function AddExercise({ existing, onAdd, seed }) {
   const [text, setText] = useState("");
-  const name = text.trim().replace(/\s+/g, " ");
+  /* what was searched for and not found is almost always what wants adding */
+  const value = text || seed || "";
+  const name = value.trim().replace(/\s+/g, " ");
   const clash = existing.some((n) => n.toLowerCase() === name.toLowerCase());
   const ok = name.length > 0 && !clash;
 
@@ -270,7 +415,7 @@ function AddExercise({ existing, onAdd }) {
     <div style={{ marginTop: 10 }}>
       <div style={{ display: "flex", gap: 6 }}>
         <input
-          value={text}
+          value={value}
           onChange={(e) => setText(e.target.value)}
           placeholder="Add an exercise"
           aria-label="Add an exercise"
@@ -304,6 +449,15 @@ function AddExercise({ existing, onAdd }) {
 export default function GothamApp() {
   const [tab, setTab] = useState("overload");
   const [open, setOpen] = useState(null);
+  const [query, setQuery] = useState("");
+  /* which of the four list layouts to draw, while one is being chosen */
+  const [listv] = useState(() => {
+    try {
+      return localStorage.getItem("ppl-listv") || "a";
+    } catch (e) {
+      return "a";
+    }
+  });
   const [saveError, setSaveError] = useState(false);
 
   const profile = loadJSON("ppl-profile", {});
@@ -396,6 +550,10 @@ export default function GothamApp() {
     );
   }
 
+  const shown = exercises.filter((n) =>
+    n.toLowerCase().includes(query.trim().toLowerCase())
+  );
+
   const stepMonth = (d) => {
     const m = month.m + d;
     setMonth(m < 1 ? { y: month.y - 1, m: 12 } : m > 12 ? { y: month.y + 1, m: 1 } : { ...month, m });
@@ -444,38 +602,32 @@ export default function GothamApp() {
               <br />
               overload
             </div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: MUTE, marginTop: 8 }}>
-              Every exercise you run. Tap one to log the weight and see the graph.
-            </div>
+            {exercises.length === 0 && (
+              <div style={{ fontSize: 15, fontWeight: 700, color: MUTE, marginTop: 8 }}>
+                Every exercise you run. Tap one to log the weight and see the graph.
+              </div>
+            )}
           </div>
 
           <div style={{ padding: "14px 16px 0" }}>
+            <SearchBar
+              value={query}
+              onChange={setQuery}
+              count={query ? null : exercises.length}
+              plain={listv === "b"}
+            />
             {exercises.length === 0 && (
               <div style={{ fontSize: 16, color: MUTE, lineHeight: 1.4, marginBottom: 4 }}>
                 Nothing on the list yet. Add the first one below.
               </div>
             )}
-            {exercises.map((name) => {
-              const hist = lifts[name];
-              const last = hist && hist.length ? hist[hist.length - 1] : null;
-              return (
-                <Btn
-                  key={name}
-                  onClick={() => setOpen(name)}
-                  style={{ width: "100%", display: "flex", justifyContent: "space-between",
-                    alignItems: "center", gap: 10, background: CARD, color: TEXT,
-                    border: `1px solid ${RULE}`, padding: "15px 13px", marginBottom: 6,
-                    textAlign: "left", fontSize: 18 }}
-                >
-                  <span style={{ minWidth: 0 }}>{name}</span>
-                  <span style={{ flexShrink: 0, fontSize: 17, color: last ? ACCENT_TEXT : MUTE }}>
-                    {last ? `${last.w}kg` : "—"}
-                    <span style={{ color: MUTE }}> ›</span>
-                  </span>
-                </Btn>
-              );
-            })}
-            <AddExercise existing={exercises} onAdd={addExercise} />
+            <ExerciseList variant={listv} names={shown} lifts={lifts} onOpen={setOpen} />
+            {query && shown.length === 0 && (
+              <div style={{ fontSize: 16, color: MUTE, lineHeight: 1.4, padding: "8px 0 2px" }}>
+                Nothing matches &ldquo;{query}&rdquo;.
+              </div>
+            )}
+            <AddExercise existing={exercises} onAdd={addExercise} seed={query} />
           </div>
         </div>
       )}
