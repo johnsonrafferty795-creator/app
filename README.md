@@ -1,6 +1,6 @@
 # Workout
 
-Seven offline, installable apps built from one repo. Vite + React, everything
+Six offline, installable apps built from one repo. Vite + React, everything
 stored on the phone itself.
 
 | App | Lives at | What it does |
@@ -11,14 +11,12 @@ stored on the phone itself.
 | **Dog Training** | `/dogs/` | Two dogs' daily training checklists |
 | **Weekly** | `/week/` | A task list that unticks itself every week |
 | **Golf Mobility** | `/golf/` | Mobility, pilates and rotation work for the swing |
-| **Bertie's Biscuits** | `/biscuit/` | An idle biscuit game |
 
-They build, install and cache separately — seven home-screen icons, seven
-stores of data, one deploy. `src/workout-app.jsx`, `src/ppl-app.jsx`,
-`src/winter-app.jsx`, `src/dogs-app.jsx`, `src/weekly-app.jsx`,
-`src/golf-app.jsx` and `src/biscuit-app.jsx` are deliberately kept as
-independent files: none can break another. The game is the one with a second file — `src/biscuit-data.js`
-holds its economy, and nothing else imports it.
+They build, install and cache separately — six home-screen icons, six stores
+of data, one deploy. `src/workout-app.jsx`, `src/ppl-app.jsx`,
+`src/winter-app.jsx`, `src/dogs-app.jsx`, `src/weekly-app.jsx` and
+`src/golf-app.jsx` are deliberately kept as independent files: none can break
+another.
 
 ## Workout
 
@@ -67,10 +65,8 @@ Everything lives in `localStorage` under three keys, wrapped by `src/storage.js`
 | `tk-log`     | which tasks were ticked, filed under the week they belong to |
 | `tk-prefs`   | which day the week starts on                        |
 | `gf-log`     | per day, per block, how many goes at each exercise are finished |
-| `bs-game`    | the whole save: biscuits, buildings, upgrades, badges, crumbs |
-| `bs-prefs`   | how numbers are written, and whether they fly off the biscuit |
 
-The apps share an origin, so the `wk-` / `ppl-` / `dg-` / `tk-` / `gf-` / `bs-`
+The apps share an origin, so the `wk-` / `ppl-` / `dg-` / `tk-` / `gf-`
 prefixes are what keep them out of each other's data.
 
 No account, no network, no sync — the data belongs to the phone it was entered
@@ -194,12 +190,11 @@ settings screen.
 ## Icons
 
 `public/*.png`, `ppl/public/*.png`, `winter/public/*.png`, `dogs/public/*.png`,
-`week/public/*.png`, `golf/public/*.png` and `biscuit/public/*.png` are
-generated with the standard library only — a red dumbbell for one app, a blue
-plate for the second, a bone-white barbell on black for the third, a white paw
-on green for the fourth, a pale calendar page with an orange tick for the
-fifth, a chalk flagstick and ball on fairway green for the sixth, and a
-chocolate-chip biscuit on dark cocoa for the seventh:
+`week/public/*.png` and `golf/public/*.png` are generated with the standard
+library only — a red dumbbell for one app, a blue plate for the second, a
+bone-white barbell on black for the third, a white paw on green for the fourth,
+a pale calendar page with an orange tick for the fifth, and a chalk flagstick
+and ball on fairway green for the sixth:
 
 ```sh
 python3 tools/make-icons.py
@@ -208,7 +203,6 @@ python3 tools/make-winter-icons.py
 python3 tools/make-dogs-icons.py
 python3 tools/make-weekly-icons.py
 python3 tools/make-golf-icons.py
-python3 tools/make-biscuit-icons.py
 ```
 
 The Winter Arc barbell is drawn from one description of half a bar — the plates
@@ -219,9 +213,9 @@ inside the app, so the home screen and the front page agree.
 
 Every app keeps everything on the one phone, so each has an **Export a backup**
 button — Plan tab in the PPL and golf apps, Exercises tab in the first and in
-Winter Arc, Week tab in the dog app, the menu in the weekly one, the Tin tab in
-the game. It writes a dated
-JSON file through the iOS share sheet, falling back to a download elsewhere.
+Winter Arc, Week tab in the dog app, and the menu in the weekly one. It writes
+a dated JSON file through the iOS share sheet, falling back to a download
+elsewhere.
 **Restore from a file** puts it back, after saying what the file holds and that
 the phone's current data is written over. A backup is stamped with the app it
 came from, since they share an origin and would otherwise overwrite each
@@ -271,13 +265,6 @@ black, so nothing written on it can clear AA — not the day name, and certainly
 not a muted colour for a finished task. For the same reason the tick box keeps
 a pale ring whether it is filled or not: the orange fill alone is 2.2:1 against
 the palest band, and a white tick rules out a lighter fill.
-
-The biscuit game is the brown one: a dark cocoa ground, cream type and one
-gold, with the dough and its chocolate chips as the only other colours — see
-`src/biscuit-theme.css`. Against the ground, type is 16.4:1, muted 8.3:1,
-faint 5.4:1, gold 10.0:1 and green 9.9:1. Faint drops to 4.2:1 on a raised row,
-which is under AA, so it is never used there — raised rows take muted instead.
-Type on a gold fill is the dark ground, at 10.0:1.
 
 Winter Arc is the black one, and carries two looks switched from its Plan tab:
 **Blackout** (bone white on black, with one cold blue-grey step for a focus
@@ -393,69 +380,3 @@ since the whole exercise is the change between them. The 90/90 hip switch is
 drawn looking down, because from the side it is indistinguishable from sitting
 with the legs splayed — and it is labelled **from above**, because a figure
 drawn from above otherwise reads as one lying on the floor.
-
-## Bertie's Biscuits
-
-The seventh app, at `/biscuit/`. Bertie's, and an idle game — the only one here
-that is not about getting something done: tap a biscuit, then buy something
-that taps it for you, then buy something that buys those.
-
-Its name is on the home-screen icon and in the title bar, which is where the
-other five keep theirs; on screen it appears once, at the foot of the Tin tab.
-
-It is built to the shape of the genre it belongs to — the numbers below are
-tuned to that shape. Everything written on top of them, and everything drawn,
-is this app's own.
-
-- **Bake** — the biscuit, and what a tap is currently worth. On every other
-  screen it comes back as a strip above the tab bar, because a shop you have to
-  leave to keep baking is no use
-- **Shop** — 18 buildings and 141 upgrades. Buy ×1, ×10, ×100 or as many as
-  you can afford; sell a quarter back. A row says what one of them makes and
-  what share of everything that building is, which is the only number that
-  answers "is this worth buying"
-- **Badges** — 112 of them, and each is worth 1% more a second once there is
-  **tea** in the shop to brew it with. Nothing here is only decorative
-- **Tin** — crumbs, the stats, the settings and the backup buttons
-
-**Golden biscuits** turn up every few minutes and sit there for thirteen
-seconds, anywhere on any screen. Tapping one is the only thing in the game that
-is not a matter of waiting: a frenzy is seven times the rate for 77 seconds, a
-tap frenzy is 777 times a tap for 13, and a storm rains them for 7. About one in
-twelve comes out **burnt** — visibly, so it can be left alone, which is the
-whole point of it being a decision.
-
-**Tipping the tin** throws the run away and keeps the crumbs: one crumb for
-every cube root of a trillion baked, each worth 1% more a second, for good. The
-bonus counts crumbs *earned* rather than crumbs left, so spending them never
-makes the next run slower. Ten things to spend them on, from a head start to
-twin ovens.
-
-The oven keeps going while the app is shut — half your rate for up to three
-hours to begin with, the full rate for up to three days once the crumbs have
-paid for it.
-
-### How it is put together
-
-`src/biscuit-data.js` is the rules and nothing else: the buildings, the
-upgrades, the badges, and the maths that turns them into a number per second.
-It holds no React and touches no storage, so the economy can be checked — and
-corrected — without opening the screen code. Every upgrade declares its effect
-as data rather than as a function, so the whole lot is summed in one pass and
-nothing can quietly apply twice.
-
-The save is held in a ref and changed in place rather than replaced. A clicker
-ticks twenty times a second, and copying a save that deep that often is felt on
-a phone. Two counters drive the drawing instead: one at 20 a second for the
-header and the biscuit, one at 4 a second for the shop and the badge wall,
-which do not need twenty frames to be right.
-
-Every tick uses the real clock rather than counting ticks, because a
-backgrounded tab is throttled to about once a second and has to catch up rather
-than fall behind. Anything longer than a minute is not caught up at all — it is
-handled as time away, at the offline rate.
-
-A save read off a phone is not trusted: it may be from an older version, a
-half-finished write, or a backup someone edited by hand. Every field is coerced
-to the shape the game expects or replaced, so a bad save costs you the save and
-not the app.
