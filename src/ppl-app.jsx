@@ -375,6 +375,38 @@ function ExerciseList({ variant, names, lifts, onOpen }) {
       );
     });
 
+  /* E - two across with nothing drawn round it: the grid lines are the only
+     structure, the way a lit edge is the only thing marking a wall */
+  if (variant === "e")
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+        {names.map((name, i) => {
+          const w = lastOf(name);
+          return (
+            <Btn
+              key={name}
+              onClick={() => onOpen(name)}
+              style={{ display: "flex", flexDirection: "column", alignItems: "flex-start",
+                gap: 10, background: "transparent", color: TEXT, borderRadius: 0,
+                border: "none",
+                borderTop: i >= 2 ? `1px solid ${RULE}` : "none",
+                borderRight: i % 2 === 0 ? `1px solid ${RULE}` : "none",
+                padding: i % 2 === 0 ? "20px 14px 22px 2px" : "20px 2px 22px 14px",
+                textAlign: "left", fontSize: 15, lineHeight: 1.25 }}
+            >
+              {/* two lines held open whether the name needs them or not, so the
+                  weights all sit on one baseline and the grid stays even */}
+              <span style={{ minWidth: 0, minHeight: 38 }}>{name}</span>
+              <span style={{ fontFamily: DISPLAY, fontSize: 20, fontWeight: 800,
+                letterSpacing: "-0.02em", color: w != null ? TEXT : MUTE }}>
+                {w != null ? `${w}kg` : "—"}
+              </span>
+            </Btn>
+          );
+        })}
+      </div>
+    );
+
   /* D - tiles: two across, so a long list is half as far to scroll */
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -614,7 +646,7 @@ export default function GothamApp() {
               value={query}
               onChange={setQuery}
               count={query ? null : exercises.length}
-              plain={listv === "b"}
+              plain={listv === "b" || listv === "e"}
             />
             {exercises.length === 0 && (
               <div style={{ fontSize: 16, color: MUTE, lineHeight: 1.4, marginBottom: 4 }}>
