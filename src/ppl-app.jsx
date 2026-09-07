@@ -66,6 +66,25 @@ const perDay = (hist) => {
     .map(([d, w]) => ({ d, v: w }));
 };
 
+/* Sets, the same way: the most done in a day, and only for the days that
+   carry a figure - everything logged before sets existed simply has none, so
+   the second line starts where the counting started. */
+const setsPerDay = (hist) => {
+  const byDate = {};
+  (hist || []).forEach((s) => {
+    if (s.s == null) return;
+    if (byDate[s.d] == null || s.s > byDate[s.d]) byDate[s.d] = s.s;
+  });
+  return Object.entries(byDate)
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+    .map(([d, n]) => ({ d, v: n }));
+};
+
+const lastSets = (hist) => {
+  const withSets = (hist || []).filter((e) => e.s != null);
+  return withSets.length ? withSets[withSets.length - 1].s : 3;
+};
+
 /* ---- moving over from the old app ----
  * The exercise list used to be picks per muscle group plus anything added on
  * the phone. It is one flat list now, so it is built once from whatever that
@@ -83,14 +102,22 @@ function migrateExercises(profile, lifts) {
   return out;
 }
 
+/* the sets logged on a given day, if any were */
+const setsOn = (setPoints, day) => {
+  const hit = setPoints.find((p) => p.d === day);
+  return hit ? hit.v : null;
+};
+
 /* ============================ overload detail ============================ */
 
 function Overload({ name, hist, onLog, onRemove, onBack }) {
   const [picked, setPicked] = useState(null);
   const [kg, setKg] = useState(() => String(lastWeight(hist)));
+  const [sets, setSets] = useState(() => lastSets(hist));
   const [confirmGone, setConfirmGone] = useState(false);
 
   const points = perDay(hist);
+  const setPoints = setsPerDay(hist);
   const entries = [...(hist || [])].sort((a, b) => (a.d < b.d ? 1 : -1));
   const num = parseFloat(kg);
   const valid = !isNaN(num) && num > 0 && num < 1000;
@@ -139,14 +166,33 @@ function Overload({ name, hist, onLog, onRemove, onBack }) {
               label={`${name} weight over time`}
               selected={picked}
               onSelect={setPicked}
+              second={setPoints}
             />
             <div style={{ fontSize: 14, fontWeight: 700, color: MUTE, minHeight: 20 }}>
               {picked != null
-                ? `${shortDate(points[picked].d)} · ${points[picked].v}kg`
+                ? `${shortDate(points[picked].d)} · ${points[picked].v}kg${
+                    setsOn(setPoints, points[picked].d) != null
+                      ? ` · ${setsOn(setPoints, points[picked].d)} sets`
+                      : ""
+                  }`
                 : points.length > 1
                 ? "Tap the line to read a day."
                 : ""}
             </div>
+            {setPoints.length > 1 && (
+              /* the only thing saying which line is which, since neither has an
+                 axis of its own and a full legend would be more furniture than
+                 two lines are worth */
+              <div style={{ display: "flex", gap: 14, fontSize: 13, fontWeight: 800,
+                letterSpacing: "0.06em", textTransform: "uppercase", color: MUTE, marginTop: 2 }}>
+                <span style={{ color: TEXT }}>
+                  <span style={{ opacity: 0.6 }}>&#9473;</span> Weight
+                </span>
+                <span>
+                  <span style={{ opacity: 0.55 }}>&#9473;</span> Sets
+                </span>
+              </div>
+            )}
           </div>
         ) : (
           <div style={{ fontSize: 16, color: MUTE, lineHeight: 1.4 }}>
@@ -173,15 +219,47 @@ function Overload({ name, hist, onLog, onRemove, onBack }) {
             </div>
             <Btn aria="More weight" onClick={() => bump(2.5)} style={pad}>+</Btn>
           </div>
+
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+            gap: 10, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${RULE}` }}>
+            <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em",
+              textTransform: "uppercase", color: MUTE }}>
+              Sets
+            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Btn
+                aria="One set fewer"
+                onClick={() => setSets(Math.max(1, sets - 1))}
+                style={{ width: 44, height: 44, padding: 0, fontSize: 22, lineHeight: 1,
+                  background: CARD, border: `1px solid ${RULE}`, color: TEXT }}
+              >
+                &minus;
+              </Btn>
+              <span style={{ fontFamily: DISPLAY, fontSize: 26, fontWeight: 800, minWidth: 34,
+                textAlign: "center" }}>
+                {sets}
+              </span>
+              <Btn
+                aria="One set more"
+                onClick={() => setSets(Math.min(20, sets + 1))}
+                style={{ width: 44, height: 44, padding: 0, fontSize: 22, lineHeight: 1,
+                  background: CARD, border: `1px solid ${RULE}`, color: TEXT }}
+              >
+                +
+              </Btn>
+            </div>
+          </div>
+
           <Btn
-            onClick={() => valid && onLog(+num.toFixed(2))}
+            onClick={() => valid && onLog(+num.toFixed(2), sets)}
             style={{ width: "100%", marginTop: 10, padding: "16px 0", fontSize: 19,
               background: valid ? PUSH_C : WASH, color: valid ? ON_ACCENT : MUTE }}
           >
-            Log {valid ? `${+num.toFixed(2)}kg` : "it"}
+            Log {valid ? `${+num.toFixed(2)}kg × ${sets}` : "it"}
           </Btn>
           <div style={{ fontSize: 13, color: MUTE, marginTop: 8, lineHeight: 1.35 }}>
-            Type it, or nudge it 2.5 at a time. Whatever you actually lifted.
+            Type it, or nudge it 2.5 at a time. Whatever you actually lifted, and
+            how many sets of it.
           </div>
         </div>
 
@@ -200,7 +278,11 @@ function Overload({ name, hist, onLog, onRemove, onBack }) {
                   <span style={{ fontSize: 14, fontWeight: 800, color: MUTE }}>{shortDate(e.d)}</span>
                   <span style={{ fontFamily: DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: "-0.01em" }}>
                     {e.w}kg
-                    {e.r ? <span style={{ fontSize: 14, color: MUTE }}> × {e.r}</span> : null}
+                    {e.s != null ? (
+                      <span style={{ fontSize: 14, color: MUTE }}> × {e.s} sets</span>
+                    ) : e.r ? (
+                      <span style={{ fontSize: 14, color: MUTE }}> × {e.r}</span>
+                    ) : null}
                     {diff != null && diff !== 0 && (
                       <span style={{ fontSize: 14, color: MUTE, marginLeft: 8 }}>
                         {diff > 0 ? "+" : ""}
@@ -462,9 +544,9 @@ export default function GothamApp() {
     persist("ppl-weight", next);
   };
 
-  const logLift = (name, w) => {
+  const logLift = (name, w, sets) => {
     const hist = lifts[name] ? [...lifts[name]] : [];
-    hist.push({ d: t, w });
+    hist.push({ d: t, w, s: sets });
     const next = { ...lifts, [name]: hist.slice(-200) };
     setLifts(next);
     persist("ppl-lifts", next);
@@ -483,7 +565,7 @@ export default function GothamApp() {
       <Overload
         name={open}
         hist={lifts[open]}
-        onLog={(w) => logLift(open, w)}
+        onLog={(w, sets) => logLift(open, w, sets)}
         onRemove={() => removeExercise(open)}
         onBack={() => setOpen(null)}
       />

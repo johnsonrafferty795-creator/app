@@ -16,7 +16,7 @@ const fmtTick = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 /* One series, so no legend — the heading names it. Solid hairline grid, a 2px
    line, and every value also readable in the list underneath, so the chart is
    never the only way to get a number. */
-export function TrendChart({ points, unit, color, label, selected, onSelect }) {
+export function TrendChart({ points, unit, color, label, selected, onSelect, second }) {
   const W = 320;
   const H = 210;
   const L = 36;
@@ -38,6 +38,18 @@ export function TrendChart({ points, unit, color, label, selected, onSelect }) {
 
   const ticks = [yMax, (yMax + yMin) / 2, yMin];
   const path = points.map((p) => `${x(p)},${y(p.v)}`).join(" ");
+
+  /* A second series on the same dates, scaled to its own range: sets and kilos
+     share no units, so they cannot share an axis. It is drawn first, thinner
+     and dimmer and without dots, so it reads as background against the line
+     that matters - and the exact figures come from tapping a day rather than
+     from a second set of axis labels nobody asked for. */
+  const s2 = second && second.length > 1 ? second : null;
+  const s2lo = s2 ? Math.min(...s2.map((p) => p.v)) : 0;
+  const s2hi = s2 ? Math.max(...s2.map((p) => p.v)) : 1;
+  const s2pad = s2hi - s2lo < 1 ? 1 : (s2hi - s2lo) * 0.6;
+  const y2 = (v) => B - ((v - (s2lo - s2pad)) / (s2hi + s2pad - (s2lo - s2pad))) * (B - T);
+  const s2path = s2 ? s2.map((p) => `${x(p)},${y2(p.v)}`).join(" ") : "";
   const showDots = points.length <= 24;
   const lastP = points[points.length - 1];
   const sel = selected != null ? points[selected] : null;
@@ -47,7 +59,10 @@ export function TrendChart({ points, unit, color, label, selected, onSelect }) {
       viewBox={`0 0 ${W} ${H}`}
       style={{ width: "100%", height: "auto", display: "block", touchAction: "manipulation" }}
       role="img"
-      aria-label={`${label}, ${points.length} points, latest ${lastP.v}${unit}`}
+      aria-label={
+        `${label}, ${points.length} points, latest ${lastP.v}${unit}` +
+        (second && second.length ? `, and ${second[second.length - 1].v} sets` : "")
+      }
     >
       {ticks.map((t, i) => (
         <g key={i}>
@@ -65,6 +80,17 @@ export function TrendChart({ points, unit, color, label, selected, onSelect }) {
           </text>
         </g>
       ))}
+
+      {s2 && (
+        <polyline
+          points={s2path}
+          fill="none"
+          style={{ stroke: MUTE, opacity: 0.55 }}
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+      )}
 
       {points.length > 1 && (
         <polyline
