@@ -44,10 +44,10 @@ export function TrendChart({ points, unit, color, label, selected, onSelect, sec
      and dimmer and without dots, so it reads as background against the line
      that matters - and the exact figures come from tapping a day rather than
      from a second set of axis labels nobody asked for. */
-  const s2 = second && second.length > 1 ? second : null;
+  const s2 = second && second.length ? second : null;
   const s2lo = s2 ? Math.min(...s2.map((p) => p.v)) : 0;
   const s2hi = s2 ? Math.max(...s2.map((p) => p.v)) : 1;
-  const s2pad = s2hi - s2lo < 1 ? 1 : (s2hi - s2lo) * 0.6;
+  const s2pad = s2hi - s2lo < 1 ? 2 : (s2hi - s2lo) * 0.6;
   const y2 = (v) => B - ((v - (s2lo - s2pad)) / (s2hi + s2pad - (s2lo - s2pad))) * (B - T);
   const s2path = s2 ? s2.map((p) => `${x(p)},${y2(p.v)}`).join(" ") : "";
   const showDots = points.length <= 24;
@@ -81,7 +81,7 @@ export function TrendChart({ points, unit, color, label, selected, onSelect, sec
         </g>
       ))}
 
-      {s2 && (
+      {s2 && s2.length > 1 && (
         <polyline
           points={s2path}
           fill="none"
@@ -89,6 +89,18 @@ export function TrendChart({ points, unit, color, label, selected, onSelect, sec
           strokeWidth="1.5"
           strokeLinejoin="round"
           strokeLinecap="round"
+        />
+      )}
+
+      {/* the newest point of the second series is always marked, so the first
+          one ever logged shows up as something rather than as nothing: one
+          reading is not a line, but it still has to be visible */}
+      {s2 && (
+        <circle
+          cx={x(s2[s2.length - 1])}
+          cy={y2(s2[s2.length - 1].v)}
+          r="3.5"
+          style={{ fill: MUTE, opacity: 0.75 }}
         />
       )}
 

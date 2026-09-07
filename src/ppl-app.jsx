@@ -179,7 +179,7 @@ function Overload({ name, hist, onLog, onRemove, onBack }) {
                 ? "Tap the line to read a day."
                 : ""}
             </div>
-            {setPoints.length > 1 && (
+            {setPoints.length > 0 && (
               /* the only thing saying which line is which, since neither has an
                  axis of its own and a full legend would be more furniture than
                  two lines are worth */
