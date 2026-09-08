@@ -102,6 +102,45 @@ function migrateExercises(profile, lifts) {
   return out;
 }
 
+/* ---- muscle groups ----
+ * The old app kept exercises in per-group buckets, and that profile is still
+ * underneath, so the grouping comes back for free for everything that was on
+ * the list then. Anything added since has none until it is given one, and sits
+ * under Other rather than disappearing.
+ */
+const GROUP_ORDER = ["chest", "back", "shoulders", "biceps", "triceps",
+  "rearDelts", "legs", "abs", "other"];
+const GROUP_LABEL = {
+  chest: "Chest", back: "Back", shoulders: "Shoulders", biceps: "Biceps",
+  triceps: "Triceps", rearDelts: "Rear delts", legs: "Legs", abs: "Abs",
+  other: "Other",
+};
+
+function migrateGroups(profile) {
+  if (profile.groups) return profile.groups;
+  const out = {};
+  const take = (bucket) =>
+    Object.entries(bucket || {}).forEach(([g, names]) =>
+      (names || []).forEach((n) => {
+        if (!out[n] && GROUP_LABEL[g]) out[n] = g;
+      })
+    );
+  take(profile.picks);
+  take(profile.custom);
+  return out;
+}
+
+/* the list, split into the groups it holds, in a fixed order so the sections
+   do not shuffle about between visits */
+const bySection = (names, groups) => {
+  const held = {};
+  names.forEach((n) => {
+    const g = groups[n] && GROUP_LABEL[groups[n]] ? groups[n] : "other";
+    (held[g] = held[g] || []).push(n);
+  });
+  return GROUP_ORDER.filter((g) => held[g]).map((g) => ({ key: g, label: GROUP_LABEL[g], names: held[g] }));
+};
+
 /* the sets logged on a given day, if any were */
 const setsOn = (setPoints, day) => {
   const hit = setPoints.find((p) => p.d === day);
@@ -376,7 +415,7 @@ function SearchBar({ value, onChange, count }) {
   );
 }
 
-function ExerciseList({ names, lifts, onOpen }) {
+function Cells({ names, lifts, onOpen }) {
   const lastOf = (n) => {
     const h = lifts[n];
     return h && h.length ? h[h.length - 1].w : null;
@@ -431,6 +470,149 @@ function ExerciseList({ names, lifts, onOpen }) {
   );
 }
 
+function GroupHeading({ children, count, style }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "baseline",
+        justifyContent: "space-between",
+        gap: 10,
+        margin: "22px 0 2px",
+        paddingBottom: 6,
+        ...style,
+      }}
+    >
+      <span style={{ fontFamily: DISPLAY, fontSize: 19, fontWeight: 800,
+        textTransform: "uppercase", letterSpacing: "0.12em" }}>
+        {children}
+      </span>
+      {count != null && (
+        <span style={{ fontSize: 13, fontWeight: 800, color: MUTE }}>{count}</span>
+      )}
+    </div>
+  );
+}
+
+/* Four ways to reach one exercise in a list this long, kept side by side
+   while one is chosen. The cells themselves never change. */
+function ExerciseList({ variant, names, groups, lifts, onOpen }) {
+  const [open, setOpen] = useState(null);
+  const [only, setOnly] = useState("all");
+  const sections = bySection(names, groups);
+
+  /* 0 - as it is today, no grouping at all: the one that stays live until one
+     of the others is picked */
+  if (variant === "0") return <Cells names={names} lifts={lifts} onOpen={onOpen} />;
+
+  /* 1 - headings down the page, everything on one scroll */
+  if (variant === "1")
+    return (
+      <div>
+        {sections.map((sec) => (
+          <div key={sec.key}>
+            <GroupHeading count={sec.names.length}>{sec.label}</GroupHeading>
+            <Cells names={sec.names} lifts={lifts} onOpen={onOpen} />
+          </div>
+        ))}
+      </div>
+    );
+
+  /* 2 - a row of groups to filter by, and the list stays flat underneath */
+  if (variant === "2") {
+    const shown = only === "all" ? names : (sections.find((x) => x.key === only) || { names: [] }).names;
+    return (
+      <div>
+        <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 12,
+          margin: "0 -16px", padding: "0 16px 12px", WebkitOverflowScrolling: "touch" }}>
+          {[{ key: "all", label: "All" }, ...sections].map((g) => {
+            const on = only === g.key;
+            return (
+              <Btn
+                key={g.key}
+                plain
+                onClick={() => setOnly(g.key)}
+                style={{ flexShrink: 0, padding: "10px 14px", fontSize: 13, fontWeight: 800,
+                  letterSpacing: "0.08em", borderRadius: 999,
+                  background: on ? PUSH_C : "transparent", color: on ? ON_ACCENT : MUTE,
+                  border: `1px solid ${on ? PUSH_C : LINE}` }}
+              >
+                {g.label}
+              </Btn>
+            );
+          })}
+        </div>
+        <Cells names={shown} lifts={lifts} onOpen={onOpen} />
+      </div>
+    );
+  }
+
+  /* 3 - folded away: the whole list is six headings until one is opened */
+  if (variant === "3")
+    return (
+      <div>
+        {sections.map((sec) => {
+          const isOpen = open === sec.key;
+          return (
+            <div key={sec.key}>
+              <Btn
+                plain
+                onClick={() => setOpen(isOpen ? null : sec.key)}
+                style={{ width: "100%", display: "flex", alignItems: "center",
+                  justifyContent: "space-between", gap: 10, background: "transparent",
+                  color: TEXT, border: "none", borderTop: `1px solid ${LINE}`,
+                  borderRadius: 0, padding: "20px 2px", textAlign: "left" }}
+              >
+                <span style={{ fontFamily: DISPLAY, fontSize: 19, fontWeight: 800,
+                  textTransform: "uppercase", letterSpacing: "0.12em" }}>
+                  {sec.label}
+                </span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: MUTE }}>
+                  {sec.names.length} {isOpen ? "−" : "+"}
+                </span>
+              </Btn>
+              {isOpen && (
+                <div style={{ paddingBottom: 10 }}>
+                  <Cells names={sec.names} lifts={lifts} onOpen={onOpen} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+
+  /* 4 - headings, plus a row at the top that jumps to one */
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 12,
+        borderBottom: `1px solid ${LINE}` }}>
+        {sections.map((sec) => (
+          <Btn
+            key={sec.key}
+            plain
+            onClick={() => {
+              const el = document.getElementById(`sec-${sec.key}`);
+              if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            style={{ flexShrink: 0, padding: "4px 0", fontSize: 13, fontWeight: 800,
+              letterSpacing: "0.1em", background: "transparent", color: MUTE,
+              border: "none", borderRadius: 0 }}
+          >
+            {sec.label}
+          </Btn>
+        ))}
+      </div>
+      {sections.map((sec) => (
+        <div key={sec.key} id={`sec-${sec.key}`} style={{ scrollMarginTop: 8 }}>
+          <GroupHeading count={sec.names.length}>{sec.label}</GroupHeading>
+          <Cells names={sec.names} lifts={lifts} onOpen={onOpen} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ============================ add an exercise ============================ */
 
 function AddExercise({ existing, onAdd, seed }) {
@@ -480,6 +662,14 @@ export default function GothamApp() {
   const [tab, setTab] = useState("overload");
   const [open, setOpen] = useState(null);
   const [query, setQuery] = useState("");
+  /* which grouping to draw, while one is being chosen */
+  const [groupv] = useState(() => {
+    try {
+      return localStorage.getItem("ppl-groupv") || "0";
+    } catch (e) {
+      return "0";
+    }
+  });
   const [saveError, setSaveError] = useState(false);
 
   const profile = loadJSON("ppl-profile", {});
@@ -487,6 +677,7 @@ export default function GothamApp() {
   const [exercises, setExercises] = useState(() =>
     migrateExercises(profile, loadJSON("ppl-lifts", {}))
   );
+  const [groups] = useState(() => migrateGroups(profile));
   const [days, setDays] = useState(() => loadJSON("ppl-days", {}));
   const [weights, setWeights] = useState(() => loadJSON("ppl-weight", {}));
   const [goal, setGoal] = useState(profile.goal || "maintain");
@@ -513,7 +704,7 @@ export default function GothamApp() {
   /* the old profile is kept whole underneath, so nothing logged under the
      previous app is thrown away by this one saving over it */
   const saveProfile = (next) => {
-    const merged = { ...profile, goal, theme, exercises, ...next };
+    const merged = { ...profile, goal, theme, exercises, groups, ...next };
     if (next.goal) setGoal(next.goal);
     if (next.theme) setTheme(next.theme);
     if (next.exercises) setExercises(next.exercises);
@@ -526,8 +717,8 @@ export default function GothamApp() {
 
   /* write the flattened list back once, so it stops being derived */
   useEffect(() => {
-    if (!Array.isArray(profile.exercises))
-      persist("ppl-profile", { ...profile, goal, theme, exercises });
+    if (!Array.isArray(profile.exercises) || !profile.groups)
+      persist("ppl-profile", { ...profile, goal, theme, exercises, groups });
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, []);
 
@@ -642,7 +833,13 @@ export default function GothamApp() {
                 Nothing on the list yet. Add the first one below.
               </div>
             )}
-            <ExerciseList names={shown} lifts={lifts} onOpen={setOpen} />
+            <ExerciseList
+              variant={query ? "0" : groupv}
+              names={shown}
+              groups={groups}
+              lifts={lifts}
+              onOpen={setOpen}
+            />
             {query && shown.length === 0 && (
               <div style={{ fontSize: 16, color: MUTE, lineHeight: 1.4, padding: "8px 0 2px" }}>
                 Nothing matches &ldquo;{query}&rdquo;.
