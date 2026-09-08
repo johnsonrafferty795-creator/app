@@ -415,6 +415,17 @@ function SearchBar({ value, onChange, count }) {
   );
 }
 
+/* Where the last session left off against the one before it. Compared by day
+   rather than by entry, so two sets logged on one day are one reading. */
+function moveOf(hist) {
+  const days = perDay(hist);
+  if (days.length < 2) return null;
+  const now = days[days.length - 1].v;
+  const before = days[days.length - 2].v;
+  const by = +(now - before).toFixed(2);
+  return { dir: by > 0 ? "up" : by < 0 ? "down" : "same", by: Math.abs(by) };
+}
+
 function Cells({ names, lifts, onOpen }) {
   const lastOf = (n) => {
     const h = lifts[n];
@@ -428,6 +439,7 @@ function Cells({ names, lifts, onOpen }) {
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
       {names.map((name, i) => {
         const w = lastOf(name);
+        const move = moveOf(lifts[name]);
         return (
           <Btn
             key={name}
@@ -452,16 +464,35 @@ function Cells({ names, lifts, onOpen }) {
             {/* two lines held open whether the name needs them or not, so the
                 weights all sit on one baseline and the grid stays even */}
             <span style={{ minWidth: 0, minHeight: 38 }}>{name}</span>
-            <span
-              style={{
-                fontFamily: DISPLAY,
-                fontSize: 20,
-                fontWeight: 800,
-                letterSpacing: "-0.02em",
-                color: w != null ? TEXT : MUTE,
-              }}
-            >
-              {w != null ? `${w}kg` : "—"}
+            <span style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+              <span
+                style={{
+                  fontFamily: DISPLAY,
+                  fontSize: 20,
+                  fontWeight: 800,
+                  letterSpacing: "-0.02em",
+                  color: w != null ? TEXT : MUTE,
+                }}
+              >
+                {w != null ? `${w}kg` : "—"}
+              </span>
+              {/* which way the last session went: the arrow carries it, not a
+                  colour, since there is no second colour in this palette to
+                  spend on it */}
+              {move && (
+                <span
+                  aria-label={
+                    move.dir === "same"
+                      ? "same as last time"
+                      : `${move.by}kg ${move.dir} on last time`
+                  }
+                  style={{ fontSize: 13, fontWeight: 800, color: MUTE,
+                    letterSpacing: "0.02em", whiteSpace: "nowrap" }}
+                >
+                  {move.dir === "up" ? "↑" : move.dir === "down" ? "↓" : "="}
+                  {move.dir === "same" ? "" : move.by}
+                </span>
+              )}
             </span>
           </Btn>
         );
