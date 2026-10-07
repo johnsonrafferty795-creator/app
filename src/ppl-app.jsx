@@ -149,7 +149,7 @@ const setsOn = (setPoints, day) => {
 
 /* ============================ overload detail ============================ */
 
-function Overload({ name, hist, onLog, onRemove, onBack }) {
+function Overload({ name, hist, group, onGroup, onLog, onRemove, onBack }) {
   const [picked, setPicked] = useState(null);
   const [kg, setKg] = useState(() => String(lastWeight(hist)));
   const [sets, setSets] = useState(() => lastSets(hist));
@@ -340,7 +340,30 @@ function Overload({ name, hist, onLog, onRemove, onBack }) {
           </div>
         )}
 
-        <div style={{ marginTop: 26, borderTop: `1px solid ${RULE}`, paddingTop: 12 }}>
+        <div style={{ marginTop: 24, borderTop: `1px solid ${RULE}`, paddingTop: 14 }}>
+          <SectionLabel style={{ marginBottom: 8 }}>Muscle group</SectionLabel>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {GROUP_ORDER.map((g) => {
+              const on = group === g;
+              return (
+                <Btn
+                  key={g}
+                  plain
+                  aria={`File ${name.toLowerCase()} under ${GROUP_LABEL[g].toLowerCase()}`}
+                  onClick={() => onGroup(g)}
+                  style={{ padding: "9px 12px", fontSize: 13, fontWeight: 800,
+                    letterSpacing: "0.06em", borderRadius: 999,
+                    background: on ? PUSH_C : "transparent", color: on ? ON_ACCENT : MUTE,
+                    border: `1px solid ${on ? PUSH_C : LINE}` }}
+                >
+                  {GROUP_LABEL[g]}
+                </Btn>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={{ marginTop: 22, borderTop: `1px solid ${RULE}`, paddingTop: 12 }}>
           {confirmGone ? (
             <>
               <div style={{ fontSize: 15, lineHeight: 1.4, marginBottom: 8 }}>
@@ -454,7 +477,9 @@ function Cells({ names, lifts, onOpen }) {
               borderRadius: 0,
               border: "none",
               borderTop: i >= 2 ? `1px solid ${LINE}` : "none",
-              borderRight: i % 2 === 0 ? `1px solid ${LINE}` : "none",
+              /* no divider down the right of a cell with nothing beside it */
+              borderRight:
+                i % 2 === 0 && i !== names.length - 1 ? `1px solid ${LINE}` : "none",
               padding: i % 2 === 0 ? "20px 14px 22px 2px" : "20px 2px 22px 14px",
               textAlign: "left",
               fontSize: 15,
@@ -525,121 +550,45 @@ function GroupHeading({ children, count, style }) {
   );
 }
 
-/* Four ways to reach one exercise in a list this long, kept side by side
-   while one is chosen. The cells themselves never change. */
-function ExerciseList({ variant, names, groups, lifts, onOpen }) {
+/* The list, folded into its muscle groups: six headings until one is opened,
+   which is the shortest way through a list this long. Searching bypasses it
+   entirely - a query is already a filter, and splitting three matches across
+   three headings helps nobody. */
+function ExerciseList({ names, groups, lifts, onOpen, flat }) {
   const [open, setOpen] = useState(null);
-  const [only, setOnly] = useState("all");
-  const sections = bySection(names, groups);
+  if (flat) return <Cells names={names} lifts={lifts} onOpen={onOpen} />;
 
-  /* 0 - as it is today, no grouping at all: the one that stays live until one
-     of the others is picked */
-  if (variant === "0") return <Cells names={names} lifts={lifts} onOpen={onOpen} />;
-
-  /* 1 - headings down the page, everything on one scroll */
-  if (variant === "1")
-    return (
-      <div>
-        {sections.map((sec) => (
-          <div key={sec.key}>
-            <GroupHeading count={sec.names.length}>{sec.label}</GroupHeading>
-            <Cells names={sec.names} lifts={lifts} onOpen={onOpen} />
-          </div>
-        ))}
-      </div>
-    );
-
-  /* 2 - a row of groups to filter by, and the list stays flat underneath */
-  if (variant === "2") {
-    const shown = only === "all" ? names : (sections.find((x) => x.key === only) || { names: [] }).names;
-    return (
-      <div>
-        <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 12,
-          margin: "0 -16px", padding: "0 16px 12px", WebkitOverflowScrolling: "touch" }}>
-          {[{ key: "all", label: "All" }, ...sections].map((g) => {
-            const on = only === g.key;
-            return (
-              <Btn
-                key={g.key}
-                plain
-                onClick={() => setOnly(g.key)}
-                style={{ flexShrink: 0, padding: "10px 14px", fontSize: 13, fontWeight: 800,
-                  letterSpacing: "0.08em", borderRadius: 999,
-                  background: on ? PUSH_C : "transparent", color: on ? ON_ACCENT : MUTE,
-                  border: `1px solid ${on ? PUSH_C : LINE}` }}
-              >
-                {g.label}
-              </Btn>
-            );
-          })}
-        </div>
-        <Cells names={shown} lifts={lifts} onOpen={onOpen} />
-      </div>
-    );
-  }
-
-  /* 3 - folded away: the whole list is six headings until one is opened */
-  if (variant === "3")
-    return (
-      <div>
-        {sections.map((sec) => {
-          const isOpen = open === sec.key;
-          return (
-            <div key={sec.key}>
-              <Btn
-                plain
-                onClick={() => setOpen(isOpen ? null : sec.key)}
-                style={{ width: "100%", display: "flex", alignItems: "center",
-                  justifyContent: "space-between", gap: 10, background: "transparent",
-                  color: TEXT, border: "none", borderTop: `1px solid ${LINE}`,
-                  borderRadius: 0, padding: "20px 2px", textAlign: "left" }}
-              >
-                <span style={{ fontFamily: DISPLAY, fontSize: 19, fontWeight: 800,
-                  textTransform: "uppercase", letterSpacing: "0.12em" }}>
-                  {sec.label}
-                </span>
-                <span style={{ fontSize: 14, fontWeight: 800, color: MUTE }}>
-                  {sec.names.length} {isOpen ? "−" : "+"}
-                </span>
-              </Btn>
-              {isOpen && (
-                <div style={{ paddingBottom: 10 }}>
-                  <Cells names={sec.names} lifts={lifts} onOpen={onOpen} />
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    );
-
-  /* 4 - headings, plus a row at the top that jumps to one */
   return (
     <div>
-      <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 12,
-        borderBottom: `1px solid ${LINE}` }}>
-        {sections.map((sec) => (
-          <Btn
-            key={sec.key}
-            plain
-            onClick={() => {
-              const el = document.getElementById(`sec-${sec.key}`);
-              if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-            }}
-            style={{ flexShrink: 0, padding: "4px 0", fontSize: 13, fontWeight: 800,
-              letterSpacing: "0.1em", background: "transparent", color: MUTE,
-              border: "none", borderRadius: 0 }}
-          >
-            {sec.label}
-          </Btn>
-        ))}
-      </div>
-      {sections.map((sec) => (
-        <div key={sec.key} id={`sec-${sec.key}`} style={{ scrollMarginTop: 8 }}>
-          <GroupHeading count={sec.names.length}>{sec.label}</GroupHeading>
-          <Cells names={sec.names} lifts={lifts} onOpen={onOpen} />
-        </div>
-      ))}
+      {bySection(names, groups).map((sec) => {
+        const isOpen = open === sec.key;
+        return (
+          <div key={sec.key}>
+            <Btn
+              plain
+              aria={`${sec.label}, ${sec.names.length} exercises, ${isOpen ? "hide" : "show"}`}
+              onClick={() => setOpen(isOpen ? null : sec.key)}
+              style={{ width: "100%", display: "flex", alignItems: "center",
+                justifyContent: "space-between", gap: 10, background: "transparent",
+                color: TEXT, border: "none", borderTop: `1px solid ${LINE}`,
+                borderRadius: 0, padding: "20px 2px", textAlign: "left" }}
+            >
+              <span style={{ fontFamily: DISPLAY, fontSize: 19, fontWeight: 800,
+                textTransform: "uppercase", letterSpacing: "0.12em" }}>
+                {sec.label}
+              </span>
+              <span style={{ fontSize: 14, fontWeight: 800, color: MUTE }}>
+                {sec.names.length} {isOpen ? "−" : "+"}
+              </span>
+            </Btn>
+            {isOpen && (
+              <div style={{ paddingBottom: 10 }}>
+                <Cells names={sec.names} lifts={lifts} onOpen={onOpen} />
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -693,14 +642,6 @@ export default function GothamApp() {
   const [tab, setTab] = useState("overload");
   const [open, setOpen] = useState(null);
   const [query, setQuery] = useState("");
-  /* which grouping to draw, while one is being chosen */
-  const [groupv] = useState(() => {
-    try {
-      return localStorage.getItem("ppl-groupv") || "0";
-    } catch (e) {
-      return "0";
-    }
-  });
   const [saveError, setSaveError] = useState(false);
 
   const profile = loadJSON("ppl-profile", {});
@@ -708,7 +649,7 @@ export default function GothamApp() {
   const [exercises, setExercises] = useState(() =>
     migrateExercises(profile, loadJSON("ppl-lifts", {}))
   );
-  const [groups] = useState(() => migrateGroups(profile));
+  const [groups, setGroups] = useState(() => migrateGroups(profile));
   const [days, setDays] = useState(() => loadJSON("ppl-days", {}));
   const [weights, setWeights] = useState(() => loadJSON("ppl-weight", {}));
   const [goal, setGoal] = useState(profile.goal || "maintain");
@@ -739,6 +680,7 @@ export default function GothamApp() {
     if (next.goal) setGoal(next.goal);
     if (next.theme) setTheme(next.theme);
     if (next.exercises) setExercises(next.exercises);
+    if (next.groups) setGroups(next.groups);
     persist("ppl-profile", merged);
   };
 
@@ -792,6 +734,8 @@ export default function GothamApp() {
       <Overload
         name={open}
         hist={lifts[open]}
+        group={groups[open] && GROUP_LABEL[groups[open]] ? groups[open] : "other"}
+        onGroup={(g) => saveProfile({ groups: { ...groups, [open]: g } })}
         onLog={(w, sets) => logLift(open, w, sets)}
         onRemove={() => removeExercise(open)}
         onBack={() => setOpen(null)}
@@ -872,11 +816,11 @@ export default function GothamApp() {
               </div>
             )}
             <ExerciseList
-              variant={query ? "0" : groupv}
               names={shown}
               groups={groups}
               lifts={lifts}
               onOpen={setOpen}
+              flat={!!query}
             />
             {query && shown.length === 0 && (
               <div style={{ fontSize: 16, color: MUTE, lineHeight: 1.4, padding: "8px 0 2px" }}>
