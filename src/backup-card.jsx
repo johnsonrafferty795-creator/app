@@ -15,7 +15,7 @@ import { CARD, DISPLAY, MUTE, ON_ACCENT, RULE, TEXT } from "./tokens";
 /* Export and restore, shared by both trackers. Everything lives in one
    phone's localStorage, so a lost handset is a lost year of training unless
    there is a copy of it somewhere else. */
-export function BackupCard({ app, prefix, keys, accent }) {
+export function BackupCard({ app, prefix, keys, accent, terse }) {
   const [stage, setStage] = useState("idle");
   const [note, setNote] = useState("");
   const [pending, setPending] = useState(null);
@@ -66,11 +66,17 @@ export function BackupCard({ app, prefix, keys, accent }) {
 
   return (
     <div style={{ borderTop: `1px solid ${RULE}`, marginTop: 20, paddingTop: 14 }}>
-      <SectionLabel style={{ marginBottom: 8 }}>Backup</SectionLabel>
-      <div style={{ fontSize: 15, color: MUTE, lineHeight: 1.4, marginBottom: 10 }}>
-        Everything is stored on this phone and nowhere else. Save a copy now and
-        again — email it to yourself, drop it in Files, anywhere but here.
-      </div>
+      <SectionLabel style={{ marginBottom: 8, textAlign: terse ? "center" : "left" }}>
+        Backup
+      </SectionLabel>
+      {/* the two buttons say what they do; the paragraph only has to be read
+          once, and the app it was written for still shows it */}
+      {!terse && (
+        <div style={{ fontSize: 15, color: MUTE, lineHeight: 1.4, marginBottom: 10 }}>
+          Everything is stored on this phone and nowhere else. Save a copy now and
+          again — email it to yourself, drop it in Files, anywhere but here.
+        </div>
+      )}
 
       {stage !== "confirm" && (
         <>

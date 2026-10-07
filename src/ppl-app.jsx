@@ -903,8 +903,8 @@ export default function GothamApp() {
       {tab === "month" && (
         <div>
           <div className="cut" style={{ background: INK, padding: "16px 16px 26px" }}>
-            <div style={{ fontFamily: DISPLAY, fontSize: 36, fontWeight: 800, lineHeight: 1,
-              textTransform: "uppercase", letterSpacing: "-0.02em" }}>
+            <div style={{ fontFamily: DISPLAY, fontSize: 34, fontWeight: 800, lineHeight: 1,
+              textTransform: "uppercase", letterSpacing: "-0.02em", textAlign: "center" }}>
               Monthly overview
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
@@ -976,13 +976,8 @@ export default function GothamApp() {
               );
             })}
 
-            <div style={{ fontSize: 13, color: MUTE, lineHeight: 1.4, marginTop: 2 }}>
-              Tap a day once for done, again to mark it a rest day, again to
-              clear it. Rest days are not counted as skipped.
-            </div>
-
             <div style={{ marginTop: 18, borderTop: `1px solid ${RULE}`, paddingTop: 14 }}>
-              <SectionLabel style={{ marginBottom: 8 }}>Right now I am</SectionLabel>
+              <SectionLabel style={{ marginBottom: 8, textAlign: "center" }}>Goal</SectionLabel>
               <div style={{ display: "flex", gap: 6 }}>
                 {Object.entries(GOALS).map(([k, g]) => {
                   const on = goal === k;
@@ -999,13 +994,11 @@ export default function GothamApp() {
                   );
                 })}
               </div>
-              <div style={{ fontSize: 14, color: MUTE, marginTop: 8 }}>
-                {GOALS[goal].note}
-              </div>
+
             </div>
 
             <div style={{ marginTop: 20, borderTop: `1px solid ${RULE}`, paddingTop: 14 }}>
-              <SectionLabel style={{ marginBottom: 8 }}>Look</SectionLabel>
+              <SectionLabel style={{ marginBottom: 8, textAlign: "center" }}>Look</SectionLabel>
               <div style={{ display: "flex", gap: 6 }}>
                 {Object.entries(BAT_THEMES).map(([k, th]) => {
                   const on = theme === k;
@@ -1022,12 +1015,11 @@ export default function GothamApp() {
                   );
                 })}
               </div>
-              <div style={{ fontSize: 14, color: MUTE, marginTop: 8 }}>
-                {BAT_THEMES[theme].note}
-              </div>
+
             </div>
 
             <BackupCard
+              terse
               app="ppl"
               prefix="ppl"
               keys={["ppl-profile", "ppl-days", "ppl-lifts", "ppl-weight"]}
