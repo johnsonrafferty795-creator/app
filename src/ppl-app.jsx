@@ -753,11 +753,16 @@ export default function GothamApp() {
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, []);
 
+  /* Round the three states rather than the two: done, then a rest day, then
+     back to nothing. A rest day is a decision and has to be recordable, or the
+     only way to say "I meant to be off" is to leave a gap that reads as a
+     miss. */
   const toggleDay = (key, day) => {
     const was = days[day] || {};
-    const next = { ...days, [day]: { ...was, [key]: !was[key] } };
-    setDays(next);
-    persist("ppl-days", next);
+    const next = was[key] === true ? "rest" : was[key] === "rest" ? false : true;
+    const all = { ...days, [day]: { ...was, [key]: next } };
+    setDays(all);
+    persist("ppl-days", all);
   };
 
   const saveWeight = (kg) => {
@@ -812,10 +817,12 @@ export default function GothamApp() {
     if (first > t) return 0;
     return Number(t.slice(8));
   })();
+  const monthDays = () =>
+    Array.from({ length: size }, (_, i) => iso(month.y, month.m, i + 1));
   const inMonth = (key) =>
-    Array.from({ length: size }, (_, i) => iso(month.y, month.m, i + 1)).filter(
-      (d) => days[d] && days[d][key]
-    ).length;
+    monthDays().filter((d) => days[d] && days[d][key] === true).length;
+  const restIn = (key) =>
+    monthDays().filter((d) => days[d] && days[d][key] === "rest").length;
 
   const tracks = TRACKS.filter((x) => x.key !== "cardio" || GOALS[goal].cardio);
   const aimFor = (key) => {
@@ -921,8 +928,9 @@ export default function GothamApp() {
           <div style={{ padding: "14px 16px 0" }}>
             {tracks.map((track) => {
               const done = inMonth(track.key);
+              const rested = restIn(track.key);
               const aim = aimFor(track.key);
-              const missed = Math.max(0, elapsed - done);
+              const missed = Math.max(0, elapsed - done - rested);
               return (
                 <div key={track.key} className="orn" style={{ border: `1px solid ${RULE}`,
                   borderRadius: 14, padding: "12px 12px 14px", marginBottom: 12 }}>
@@ -934,6 +942,7 @@ export default function GothamApp() {
                     </div>
                     <div style={{ fontSize: 14, fontWeight: 800, color: MUTE }}>
                       {done} {track.verb}
+                      {rested ? ` · ${rested} rest` : ""}
                       {aim != null
                         ? ` · ${aim} is the aim`
                         : elapsed
@@ -945,7 +954,10 @@ export default function GothamApp() {
                     year={month.y}
                     month={month.m}
                     done={Object.fromEntries(
-                      Object.entries(days).map(([d, f]) => [d, !!f[track.key]])
+                      Object.entries(days).map(([d, f]) => [
+                        d,
+                        f[track.key] === "rest" ? "rest" : !!f[track.key],
+                      ])
                     )}
                     colour={track.colour()}
                     today={t}
@@ -955,6 +967,11 @@ export default function GothamApp() {
                 </div>
               );
             })}
+
+            <div style={{ fontSize: 13, color: MUTE, lineHeight: 1.4, marginTop: 2 }}>
+              Tap a day once for done, again to mark it a rest day, again to
+              clear it. Rest days are not counted as skipped.
+            </div>
 
             <div style={{ marginTop: 18, borderTop: `1px solid ${RULE}`, paddingTop: 14 }}>
               <SectionLabel style={{ marginBottom: 8 }}>Right now I am</SectionLabel>
