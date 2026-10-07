@@ -340,28 +340,22 @@ function Overload({ name, hist, group, onGroup, onLog, onRemove, onBack }) {
           </div>
         )}
 
-        <div style={{ marginTop: 24, borderTop: `1px solid ${RULE}`, paddingTop: 14 }}>
-          <SectionLabel style={{ marginBottom: 8 }}>Muscle group</SectionLabel>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {GROUP_ORDER.map((g) => {
-              const on = group === g;
-              return (
-                <Btn
-                  key={g}
-                  plain
-                  aria={`File ${name.toLowerCase()} under ${GROUP_LABEL[g].toLowerCase()}`}
-                  onClick={() => onGroup(g)}
-                  style={{ padding: "9px 12px", fontSize: 13, fontWeight: 800,
-                    letterSpacing: "0.06em", borderRadius: 999,
-                    background: on ? PUSH_C : "transparent", color: on ? ON_ACCENT : MUTE,
-                    border: `1px solid ${on ? PUSH_C : LINE}` }}
-                >
-                  {GROUP_LABEL[g]}
-                </Btn>
-              );
-            })}
+        {/* Only the ones that were never filed are asked about, and only once:
+            picking a group here is the last word on it. */}
+        {!group && (
+          <div style={{ marginTop: 24, borderTop: `1px solid ${RULE}`, paddingTop: 14 }}>
+            <SectionLabel style={{ marginBottom: 6 }}>Which group?</SectionLabel>
+            <div style={{ fontSize: 14, color: MUTE, lineHeight: 1.4, marginBottom: 10 }}>
+              This one was added before the list was split up. Put it where it
+              belongs and it stays there.
+            </div>
+            <GroupPicker
+              chosen={null}
+              onPick={onGroup}
+              aria={(g) => `File ${name.toLowerCase()} under ${GROUP_LABEL[g].toLowerCase()}`}
+            />
           </div>
-        </div>
+        )}
 
         <div style={{ marginTop: 22, borderTop: `1px solid ${RULE}`, paddingTop: 12 }}>
           {confirmGone ? (
@@ -593,15 +587,45 @@ function ExerciseList({ names, groups, lifts, onOpen, flat }) {
   );
 }
 
+/* The groups something can be filed under. Other is not one of them: it is
+   only ever where the app puts what it has not been told about. */
+const FILEABLE = GROUP_ORDER.filter((g) => g !== "other");
+
+function GroupPicker({ chosen, onPick, aria }) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      {FILEABLE.map((g) => {
+        const on = chosen === g;
+        return (
+          <Btn
+            key={g}
+            plain
+            aria={aria(g)}
+            onClick={() => onPick(g)}
+            style={{ padding: "9px 12px", fontSize: 13, fontWeight: 800,
+              letterSpacing: "0.06em", borderRadius: 999,
+              background: on ? PUSH_C : "transparent", color: on ? ON_ACCENT : MUTE,
+              border: `1px solid ${on ? PUSH_C : LINE}` }}
+          >
+            {GROUP_LABEL[g]}
+          </Btn>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ============================ add an exercise ============================ */
 
 function AddExercise({ existing, onAdd, seed }) {
   const [text, setText] = useState("");
+  const [group, setGroup] = useState(null);
   /* what was searched for and not found is almost always what wants adding */
   const value = text || seed || "";
   const name = value.trim().replace(/\s+/g, " ");
   const clash = existing.some((n) => n.toLowerCase() === name.toLowerCase());
-  const ok = name.length > 0 && !clash;
+  const named = name.length > 0 && !clash;
+  const ok = named && group;
 
   return (
     <div style={{ marginTop: 10 }}>
@@ -617,8 +641,9 @@ function AddExercise({ existing, onAdd, seed }) {
         <Btn
           onClick={() => {
             if (!ok) return;
-            onAdd(name);
+            onAdd(name, group);
             setText("");
+            setGroup(null);
           }}
           style={{ flexShrink: 0, padding: "0 18px", fontSize: 16,
             background: ok ? PUSH_C : CARD, color: ok ? ON_ACCENT : MUTE,
@@ -630,6 +655,20 @@ function AddExercise({ existing, onAdd, seed }) {
       {clash && (
         <div style={{ fontSize: 14, color: MUTE, marginTop: 6 }}>
           {name} is already on the list.
+        </div>
+      )}
+      {/* the group is asked for as the exercise is made, rather than being
+          something to go back and tidy up later */}
+      {named && (
+        <div style={{ marginTop: 10 }}>
+          <SectionLabel style={{ marginBottom: 8 }}>
+            {group ? "Filed under" : "Which group?"}
+          </SectionLabel>
+          <GroupPicker
+            chosen={group}
+            onPick={setGroup}
+            aria={(g) => `File ${name.toLowerCase()} under ${GROUP_LABEL[g].toLowerCase()}`}
+          />
         </div>
       )}
     </div>
@@ -721,8 +760,11 @@ export default function GothamApp() {
     persist("ppl-lifts", next);
   };
 
-  const addExercise = (name) =>
-    saveProfile({ exercises: [...exercises, name] });
+  const addExercise = (name, group) =>
+    saveProfile({
+      exercises: [...exercises, name],
+      groups: { ...groups, [name]: group },
+    });
 
   const removeExercise = (name) => {
     saveProfile({ exercises: exercises.filter((n) => n !== name) });
@@ -734,7 +776,7 @@ export default function GothamApp() {
       <Overload
         name={open}
         hist={lifts[open]}
-        group={groups[open] && GROUP_LABEL[groups[open]] ? groups[open] : "other"}
+        group={groups[open] && GROUP_LABEL[groups[open]] ? groups[open] : null}
         onGroup={(g) => saveProfile({ groups: { ...groups, [open]: g } })}
         onLog={(w, sets) => logLift(open, w, sets)}
         onRemove={() => removeExercise(open)}
