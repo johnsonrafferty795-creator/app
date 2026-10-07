@@ -5,7 +5,7 @@ import { BackupCard } from "./backup-card";
 import { shortDate, today } from "./dates";
 import { TrendChart } from "./charts";
 import { Btn, SectionLabel } from "./ui";
-import { WeightPanel } from "./weight";
+import { WeightScreen } from "./ppl-weight";
 import { MONTH_NAMES, MonthGrid, daysInMonth, iso } from "./month";
 import {
   BAT_THEMES,
@@ -80,6 +80,22 @@ const setsPerDay = (hist) => {
     .map(([d, n]) => ({ d, v: n }));
 };
 
+const repsPerDay = (hist) => {
+  const byDate = {};
+  (hist || []).forEach((s) => {
+    if (s.r == null) return;
+    if (byDate[s.d] == null || s.r > byDate[s.d]) byDate[s.d] = s.r;
+  });
+  return Object.entries(byDate)
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+    .map(([d, n]) => ({ d, v: n }));
+};
+
+const lastReps = (hist) => {
+  const withReps = (hist || []).filter((e) => e.r != null);
+  return withReps.length ? withReps[withReps.length - 1].r : 8;
+};
+
 const lastSets = (hist) => {
   const withSets = (hist || []).filter((e) => e.s != null);
   return withSets.length ? withSets[withSets.length - 1].s : 3;
@@ -141,6 +157,29 @@ const bySection = (names, groups) => {
   return GROUP_ORDER.filter((g) => held[g]).map((g) => ({ key: g, label: GROUP_LABEL[g], names: held[g] }));
 };
 
+/* One row of the logger: what it is, then down, the number, up. Three of them
+   stacked is the whole card - no heading over it, no instructions under it. */
+function LogRow({ label, children, onDown, onUp, aria }) {
+  const key = {
+    width: 46, height: 46, padding: 0, fontSize: 22, lineHeight: 1, flexShrink: 0,
+    background: CARD, border: `1px solid ${RULE}`, color: TEXT,
+  };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0" }}>
+      <span style={{ flex: 1, fontSize: 12, fontWeight: 800, letterSpacing: "0.1em",
+        textTransform: "uppercase", color: MUTE }}>
+        {label}
+      </span>
+      <Btn aria={`Less ${aria}`} onClick={onDown} style={key}>&minus;</Btn>
+      <div style={{ width: 104, display: "flex", justifyContent: "center",
+        alignItems: "baseline" }}>
+        {children}
+      </div>
+      <Btn aria={`More ${aria}`} onClick={onUp} style={key}>+</Btn>
+    </div>
+  );
+}
+
 /* the sets logged on a given day, if any were */
 const setsOn = (setPoints, day) => {
   const hit = setPoints.find((p) => p.d === day);
@@ -153,10 +192,12 @@ function Overload({ name, hist, group, onGroup, onLog, onRemove, onBack }) {
   const [picked, setPicked] = useState(null);
   const [kg, setKg] = useState(() => String(lastWeight(hist)));
   const [sets, setSets] = useState(() => lastSets(hist));
+  const [reps, setReps] = useState(() => lastReps(hist));
   const [confirmGone, setConfirmGone] = useState(false);
 
   const points = perDay(hist);
   const setPoints = setsPerDay(hist);
+  const repPoints = repsPerDay(hist);
   const entries = [...(hist || [])].sort((a, b) => (a.d < b.d ? 1 : -1));
   const num = parseFloat(kg);
   const valid = !isNaN(num) && num > 0 && num < 1000;
@@ -166,8 +207,6 @@ function Overload({ name, hist, group, onGroup, onLog, onRemove, onBack }) {
   const first = hist && hist.length ? hist[0] : null;
   const gain = first && heaviest != null ? +(heaviest - first.w).toFixed(1) : null;
 
-  const pad = { width: 62, height: 62, fontSize: 26, background: CARD,
-    border: `1px solid ${RULE}`, color: TEXT, lineHeight: 1, flexShrink: 0 };
 
   return (
     <div className="pad-nav" style={{ fontFamily: BODY, color: TEXT, background: BG, minHeight: "100vh" }}>
@@ -181,13 +220,14 @@ function Overload({ name, hist, group, onGroup, onLog, onRemove, onBack }) {
           ← All exercises
         </Btn>
         <div style={{ fontFamily: DISPLAY, fontSize: 34, fontWeight: 800, lineHeight: 1,
-          textTransform: "uppercase", letterSpacing: "-0.02em" }}>
+          textTransform: "uppercase", letterSpacing: "-0.02em", textAlign: "center" }}>
           {name}
         </div>
         {heaviest != null && (
-          <div style={{ fontSize: 15, fontWeight: 700, color: MUTE, marginTop: 8 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: MUTE, marginTop: 8,
+            textAlign: "center" }}>
             Heaviest {heaviest}kg
-            {gain ? ` · ${gain > 0 ? "+" : ""}${gain}kg since the first` : ""}
+            {gain ? `  ${gain > 0 ? "+" : ""}${gain}kg` : ""}
           </div>
         )}
       </div>
@@ -195,116 +235,95 @@ function Overload({ name, hist, group, onGroup, onLog, onRemove, onBack }) {
       <div style={{ padding: "14px 16px 0" }}>
         {points.length > 0 ? (
           <div>
-            <SectionLabel style={{ marginBottom: 4 }}>
-              {points.length > 1 ? "Every session" : "First session"}
-            </SectionLabel>
             <TrendChart
               points={points}
               unit="kg"
               color={PUSH_C}
-              label={`${name} weight over time`}
+              label={`${name}: weight, sets and reps over time`}
               selected={picked}
               onSelect={setPicked}
               second={setPoints}
+              third={repPoints}
             />
-            <div style={{ fontSize: 14, fontWeight: 700, color: MUTE, minHeight: 20 }}>
+            {/* nothing is said about tapping the line; tapping it says it */}
+            <div style={{ fontSize: 14, fontWeight: 700, color: MUTE, minHeight: 18,
+              textAlign: "center" }}>
               {picked != null
                 ? `${shortDate(points[picked].d)} · ${points[picked].v}kg${
                     setsOn(setPoints, points[picked].d) != null
-                      ? ` · ${setsOn(setPoints, points[picked].d)} sets`
+                      ? ` · ${setsOn(setPoints, points[picked].d)}×${
+                          setsOn(repPoints, points[picked].d) != null
+                            ? setsOn(repPoints, points[picked].d)
+                            : "?"
+                        }`
                       : ""
                   }`
-                : points.length > 1
-                ? "Tap the line to read a day."
                 : ""}
             </div>
-            {setPoints.length > 0 && (
-              /* the only thing saying which line is which, since neither has an
-                 axis of its own and a full legend would be more furniture than
-                 two lines are worth */
-              <div style={{ display: "flex", gap: 14, fontSize: 13, fontWeight: 800,
-                letterSpacing: "0.06em", textTransform: "uppercase", color: MUTE, marginTop: 2 }}>
-                <span style={{ color: TEXT }}>
-                  <span style={{ opacity: 0.6 }}>&#9473;</span> Weight
-                </span>
-                <span>
-                  <span style={{ opacity: 0.55 }}>&#9473;</span> Sets
-                </span>
-              </div>
-            )}
           </div>
         ) : (
-          <div style={{ fontSize: 16, color: MUTE, lineHeight: 1.4 }}>
-            Nothing logged yet. Put today&rsquo;s weight in and the graph starts here.
+          <div style={{ fontSize: 16, color: MUTE, lineHeight: 1.4, textAlign: "center" }}>
+            Nothing logged yet.
           </div>
         )}
 
         <div className="orn" style={{ border: `1px solid ${RULE}`, borderRadius: 14,
-          padding: "12px 12px 14px", marginTop: 14 }}>
-          <SectionLabel style={{ marginBottom: 8 }}>Log the weight</SectionLabel>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Btn aria="Less weight" onClick={() => bump(-2.5)} style={pad}>&minus;</Btn>
-            <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", justifyContent: "center" }}>
-              <input
-                value={kg}
-                onChange={(e) => setKg(e.target.value.replace(/[^0-9.]/g, ""))}
-                inputMode="decimal"
-                aria-label="Weight in kilograms"
-                style={{ width: 132, maxWidth: "100%", minWidth: 0, border: "none", outline: "none",
-                  textAlign: "right", fontFamily: DISPLAY, fontSize: 40, fontWeight: 700, letterSpacing: "-0.02em",
-                  color: TEXT, background: "transparent", padding: 0 }}
-              />
-              <span style={{ fontFamily: DISPLAY, fontSize: 20, color: MUTE, marginLeft: 3 }}>kg</span>
-            </div>
-            <Btn aria="More weight" onClick={() => bump(2.5)} style={pad}>+</Btn>
-          </div>
+          padding: "6px 14px 14px", marginTop: 6 }}>
+          <LogRow
+            label="Weight"
+            aria="weight"
+            onDown={() => bump(-2.5)}
+            onUp={() => bump(2.5)}
+          >
+            <input
+              value={kg}
+              onChange={(e) => setKg(e.target.value.replace(/[^0-9.]/g, ""))}
+              inputMode="decimal"
+              aria-label="Weight in kilograms"
+              style={{ width: 104, minWidth: 0, border: "none", outline: "none",
+                textAlign: "center", fontFamily: DISPLAY, fontSize: 30, fontWeight: 700,
+                letterSpacing: "-0.02em", color: TEXT, background: "transparent", padding: 0 }}
+            />
+          </LogRow>
 
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
-            gap: 10, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${RULE}` }}>
-            <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.06em",
-              textTransform: "uppercase", color: MUTE }}>
-              Sets
+          <LogRow
+            label="Reps"
+            aria="reps"
+            onDown={() => setReps(Math.max(1, reps - 1))}
+            onUp={() => setReps(Math.min(99, reps + 1))}
+          >
+            <span style={{ fontFamily: DISPLAY, fontSize: 30, fontWeight: 700,
+              letterSpacing: "-0.02em" }}>
+              {reps}
             </span>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Btn
-                aria="One set fewer"
-                onClick={() => setSets(Math.max(1, sets - 1))}
-                style={{ width: 44, height: 44, padding: 0, fontSize: 22, lineHeight: 1,
-                  background: CARD, border: `1px solid ${RULE}`, color: TEXT }}
-              >
-                &minus;
-              </Btn>
-              <span style={{ fontFamily: DISPLAY, fontSize: 26, fontWeight: 800, minWidth: 34,
-                textAlign: "center" }}>
-                {sets}
-              </span>
-              <Btn
-                aria="One set more"
-                onClick={() => setSets(Math.min(20, sets + 1))}
-                style={{ width: 44, height: 44, padding: 0, fontSize: 22, lineHeight: 1,
-                  background: CARD, border: `1px solid ${RULE}`, color: TEXT }}
-              >
-                +
-              </Btn>
-            </div>
-          </div>
+          </LogRow>
+
+          <LogRow
+            label="Sets"
+            aria="sets"
+            onDown={() => setSets(Math.max(1, sets - 1))}
+            onUp={() => setSets(Math.min(20, sets + 1))}
+          >
+            <span style={{ fontFamily: DISPLAY, fontSize: 30, fontWeight: 700,
+              letterSpacing: "-0.02em" }}>
+              {sets}
+            </span>
+          </LogRow>
 
           <Btn
-            onClick={() => valid && onLog(+num.toFixed(2), sets)}
-            style={{ width: "100%", marginTop: 10, padding: "16px 0", fontSize: 19,
+            onClick={() => valid && onLog(+num.toFixed(2), sets, reps)}
+            style={{ width: "100%", marginTop: 8, padding: "16px 0", fontSize: 19,
               background: valid ? PUSH_C : WASH, color: valid ? ON_ACCENT : MUTE }}
           >
-            Log {valid ? `${+num.toFixed(2)}kg × ${sets}` : "it"}
+            Log
           </Btn>
-          <div style={{ fontSize: 13, color: MUTE, marginTop: 8, lineHeight: 1.35 }}>
-            Type it, or nudge it 2.5 at a time. Whatever you actually lifted, and
-            how many sets of it.
-          </div>
         </div>
 
         {entries.length > 0 && (
           <div style={{ marginTop: 22 }}>
-            <SectionLabel style={{ marginBottom: 8 }}>Past weights</SectionLabel>
+            <SectionLabel style={{ marginBottom: 8, textAlign: "center" }}>
+              Past weights
+            </SectionLabel>
             {entries.slice(0, 20).map((e, i, arr) => {
               const prev = arr[i + 1];
               const diff = prev ? +(e.w - prev.w).toFixed(2) : null;
@@ -317,10 +336,11 @@ function Overload({ name, hist, group, onGroup, onLog, onRemove, onBack }) {
                   <span style={{ fontSize: 14, fontWeight: 800, color: MUTE }}>{shortDate(e.d)}</span>
                   <span style={{ fontFamily: DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: "-0.01em" }}>
                     {e.w}kg
-                    {e.s != null ? (
-                      <span style={{ fontSize: 14, color: MUTE }}> × {e.s} sets</span>
-                    ) : e.r ? (
-                      <span style={{ fontSize: 14, color: MUTE }}> × {e.r}</span>
+                    {e.s != null || e.r != null ? (
+                      <span style={{ fontSize: 14, color: MUTE }}>
+                        {" "}
+                        {e.s != null ? e.s : "?"}×{e.r != null ? e.r : "?"}
+                      </span>
                     ) : null}
                     {diff != null && diff !== 0 && (
                       <span style={{ fontSize: 14, color: MUTE, marginLeft: 8 }}>
@@ -344,10 +364,12 @@ function Overload({ name, hist, group, onGroup, onLog, onRemove, onBack }) {
             picking a group here is the last word on it. */}
         {!group && (
           <div style={{ marginTop: 24, borderTop: `1px solid ${RULE}`, paddingTop: 14 }}>
-            <SectionLabel style={{ marginBottom: 6 }}>Which group?</SectionLabel>
-            <div style={{ fontSize: 14, color: MUTE, lineHeight: 1.4, marginBottom: 10 }}>
-              This one was added before the list was split up. Put it where it
-              belongs and it stays there.
+            <SectionLabel style={{ marginBottom: 6, textAlign: "center" }}>
+              Which group?
+            </SectionLabel>
+            <div style={{ fontSize: 14, color: MUTE, lineHeight: 1.4, marginBottom: 10,
+              textAlign: "center" }}>
+              Put it where it belongs and it stays there.
             </div>
             <GroupPicker
               chosen={null}
@@ -752,9 +774,9 @@ export default function GothamApp() {
     persist("ppl-weight", next);
   };
 
-  const logLift = (name, w, sets) => {
+  const logLift = (name, w, sets, reps) => {
     const hist = lifts[name] ? [...lifts[name]] : [];
-    hist.push({ d: t, w, s: sets });
+    hist.push({ d: t, w, s: sets, r: reps });
     const next = { ...lifts, [name]: hist.slice(-200) };
     setLifts(next);
     persist("ppl-lifts", next);
@@ -778,7 +800,7 @@ export default function GothamApp() {
         hist={lifts[open]}
         group={groups[open] && GROUP_LABEL[groups[open]] ? groups[open] : null}
         onGroup={(g) => saveProfile({ groups: { ...groups, [open]: g } })}
-        onLog={(w, sets) => logLift(open, w, sets)}
+        onLog={(w, sets, reps) => logLift(open, w, sets, reps)}
         onRemove={() => removeExercise(open)}
         onBack={() => setOpen(null)}
       />
@@ -875,7 +897,7 @@ export default function GothamApp() {
       )}
 
       {/* ---------------- WEIGHT ---------------- */}
-      {tab === "weight" && <WeightPanel weights={weights} onSave={saveWeight} />}
+      {tab === "weight" && <WeightScreen weights={weights} onSave={saveWeight} />}
 
       {/* ---------------- MONTH ---------------- */}
       {tab === "month" && (

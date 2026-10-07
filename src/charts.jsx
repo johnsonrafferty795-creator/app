@@ -16,7 +16,7 @@ const fmtTick = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 /* One series, so no legend — the heading names it. Solid hairline grid, a 2px
    line, and every value also readable in the list underneath, so the chart is
    never the only way to get a number. */
-export function TrendChart({ points, unit, color, label, selected, onSelect, second }) {
+export function TrendChart({ points, unit, color, label, selected, onSelect, second, third }) {
   const W = 320;
   const H = 210;
   const L = 36;
@@ -45,11 +45,20 @@ export function TrendChart({ points, unit, color, label, selected, onSelect, sec
      that matters - and the exact figures come from tapping a day rather than
      from a second set of axis labels nobody asked for. */
   const s2 = second && second.length ? second : null;
+  const s3 = third && third.length ? third : null;
   const s2lo = s2 ? Math.min(...s2.map((p) => p.v)) : 0;
   const s2hi = s2 ? Math.max(...s2.map((p) => p.v)) : 1;
   const s2pad = s2hi - s2lo < 1 ? 2 : (s2hi - s2lo) * 0.6;
   const y2 = (v) => B - ((v - (s2lo - s2pad)) / (s2hi + s2pad - (s2lo - s2pad))) * (B - T);
   const s2path = s2 ? s2.map((p) => `${x(p)},${y2(p.v)}`).join(" ") : "";
+
+  /* a third, on its own range again, dashed so it is told apart from the
+     second without a legend to read */
+  const s3lo = s3 ? Math.min(...s3.map((p) => p.v)) : 0;
+  const s3hi = s3 ? Math.max(...s3.map((p) => p.v)) : 1;
+  const s3pad = s3hi - s3lo < 1 ? 2 : (s3hi - s3lo) * 0.6;
+  const y3 = (v) => B - ((v - (s3lo - s3pad)) / (s3hi + s3pad - (s3lo - s3pad))) * (B - T);
+  const s3path = s3 ? s3.map((p) => `${x(p)},${y3(p.v)}`).join(" ") : "";
   const showDots = points.length <= 24;
   const lastP = points[points.length - 1];
   const sel = selected != null ? points[selected] : null;
@@ -89,6 +98,27 @@ export function TrendChart({ points, unit, color, label, selected, onSelect, sec
           strokeWidth="1.5"
           strokeLinejoin="round"
           strokeLinecap="round"
+        />
+      )}
+
+      {s3 && s3.length > 1 && (
+        <polyline
+          points={s3path}
+          fill="none"
+          style={{ stroke: MUTE, opacity: 0.5 }}
+          strokeWidth="1.5"
+          strokeDasharray="4 3"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+      )}
+
+      {s3 && (
+        <circle
+          cx={x(s3[s3.length - 1])}
+          cy={y3(s3[s3.length - 1].v)}
+          r="3"
+          style={{ fill: MUTE, opacity: 0.7 }}
         />
       )}
 
