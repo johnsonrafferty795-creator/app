@@ -54,26 +54,28 @@ const TRACKS = [
    number to start from */
 const lastWeight = (hist) => (hist && hist.length ? hist[hist.length - 1].w : 20);
 
-/* One point a day for the chart - the heaviest of that day. Two sets logged
-   on one day are not two points on a line. */
+/* One point a day, and it is the last thing logged that day rather than the
+   biggest. Taking the biggest meant a figure put in by mistake could never be
+   corrected: log 40 when you meant 30, log the 30, and the line stayed at 40
+   while the list underneath showed the 30. The last word wins instead. */
 const perDay = (hist) => {
   const byDate = {};
   (hist || []).forEach((s) => {
-    if (byDate[s.d] == null || s.w > byDate[s.d]) byDate[s.d] = s.w;
+    byDate[s.d] = s.w;
   });
   return Object.entries(byDate)
     .sort((a, b) => (a[0] < b[0] ? -1 : 1))
     .map(([d, w]) => ({ d, v: w }));
 };
 
-/* Sets, the same way: the most done in a day, and only for the days that
-   carry a figure - everything logged before sets existed simply has none, so
-   the second line starts where the counting started. */
+/* Sets, the same way, and only for the days that carry a figure - everything
+   logged before sets existed simply has none, so that line starts where the
+   counting started. */
 const setsPerDay = (hist) => {
   const byDate = {};
   (hist || []).forEach((s) => {
     if (s.s == null) return;
-    if (byDate[s.d] == null || s.s > byDate[s.d]) byDate[s.d] = s.s;
+    byDate[s.d] = s.s;
   });
   return Object.entries(byDate)
     .sort((a, b) => (a[0] < b[0] ? -1 : 1))
@@ -84,7 +86,7 @@ const repsPerDay = (hist) => {
   const byDate = {};
   (hist || []).forEach((s) => {
     if (s.r == null) return;
-    if (byDate[s.d] == null || s.r > byDate[s.d]) byDate[s.d] = s.r;
+    byDate[s.d] = s.r;
   });
   return Object.entries(byDate)
     .sort((a, b) => (a[0] < b[0] ? -1 : 1))
@@ -188,17 +190,23 @@ const setsOn = (setPoints, day) => {
 
 /* ============================ overload detail ============================ */
 
-function Overload({ name, hist, group, onGroup, onLog, onRemove, onBack }) {
+function Overload({ name, hist, group, onGroup, onLog, onDrop, onRemove, onBack }) {
   const [picked, setPicked] = useState(null);
   const [kg, setKg] = useState(() => String(lastWeight(hist)));
   const [sets, setSets] = useState(() => lastSets(hist));
   const [reps, setReps] = useState(() => lastReps(hist));
   const [confirmGone, setConfirmGone] = useState(false);
+  /* which past entry is asking to be removed, by its place in the history */
+  const [dropping, setDropping] = useState(null);
 
   const points = perDay(hist);
   const setPoints = setsPerDay(hist);
   const repPoints = repsPerDay(hist);
-  const entries = [...(hist || [])].sort((a, b) => (a.d < b.d ? 1 : -1));
+  /* newest first, each keeping the place it holds in the stored history so a
+     row can be removed by something steadier than its date */
+  const entries = (hist || [])
+    .map((e, i) => ({ ...e, i }))
+    .sort((a, b) => (a.d === b.d ? b.i - a.i : a.d < b.d ? 1 : -1));
   const num = parseFloat(kg);
   const valid = !isNaN(num) && num > 0 && num < 1000;
   const bump = (d) => setKg(String(+(Math.max(0, (valid ? num : 0) + d)).toFixed(2)));
@@ -327,11 +335,50 @@ function Overload({ name, hist, group, onGroup, onLog, onRemove, onBack }) {
             {entries.slice(0, 20).map((e, i, arr) => {
               const prev = arr[i + 1];
               const diff = prev ? +(e.w - prev.w).toFixed(2) : null;
+              if (dropping === e.i)
+                return (
+                  <div
+                    key={`${e.d}-${e.i}`}
+                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+                      gap: 8, padding: "8px 8px 8px 12px", background: WASH, borderRadius: 10,
+                      marginBottom: 5 }}
+                  >
+                    <span style={{ fontSize: 14, fontWeight: 800, color: MUTE }}>
+                      Remove {e.w}kg?
+                    </span>
+                    <span style={{ display: "flex", gap: 6 }}>
+                      <Btn
+                        plain
+                        onClick={() => {
+                          onDrop(e.i);
+                          setDropping(null);
+                        }}
+                        style={{ padding: "8px 12px", fontSize: 13, fontWeight: 800,
+                          background: PUSH_C, color: ON_ACCENT, border: `1px solid ${PUSH_C}` }}
+                      >
+                        Remove
+                      </Btn>
+                      <Btn
+                        plain
+                        onClick={() => setDropping(null)}
+                        style={{ padding: "8px 12px", fontSize: 13, fontWeight: 800,
+                          background: "transparent", color: MUTE, border: `1px solid ${LINE}` }}
+                      >
+                        Keep
+                      </Btn>
+                    </span>
+                  </div>
+                );
               return (
-                <div
-                  key={`${e.d}-${i}`}
-                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
-                    gap: 10, padding: "11px 12px", background: WASH, borderRadius: 10, marginBottom: 5 }}
+                <Btn
+                  key={`${e.d}-${e.i}`}
+                  plain
+                  aria={`${shortDate(e.d)}, ${e.w}kg, remove`}
+                  onClick={() => setDropping(e.i)}
+                  style={{ width: "100%", display: "flex", justifyContent: "space-between",
+                    alignItems: "center", gap: 10, padding: "11px 12px", background: WASH,
+                    borderRadius: 10, marginBottom: 5, color: TEXT, border: "none",
+                    textAlign: "left" }}
                 >
                   <span style={{ fontSize: 14, fontWeight: 800, color: MUTE }}>{shortDate(e.d)}</span>
                   <span style={{ fontFamily: DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: "-0.01em" }}>
@@ -349,7 +396,7 @@ function Overload({ name, hist, group, onGroup, onLog, onRemove, onBack }) {
                       </span>
                     )}
                   </span>
-                </div>
+                </Btn>
               );
             })}
             {entries.length > 20 && (
@@ -774,6 +821,17 @@ export default function GothamApp() {
     persist("ppl-weight", next);
   };
 
+  /* take one entry back out: a weight put in wrong is otherwise in the history
+     and in the heaviest figure for good */
+  const dropLift = (name, at) => {
+    const hist = (lifts[name] || []).filter((_, i) => i !== at);
+    const next = { ...lifts };
+    if (hist.length) next[name] = hist;
+    else delete next[name];
+    setLifts(next);
+    persist("ppl-lifts", next);
+  };
+
   const logLift = (name, w, sets, reps) => {
     const hist = lifts[name] ? [...lifts[name]] : [];
     hist.push({ d: t, w, s: sets, r: reps });
@@ -801,6 +859,7 @@ export default function GothamApp() {
         group={groups[open] && GROUP_LABEL[groups[open]] ? groups[open] : null}
         onGroup={(g) => saveProfile({ groups: { ...groups, [open]: g } })}
         onLog={(w, sets, reps) => logLift(open, w, sets, reps)}
+        onDrop={(at) => dropLift(open, at)}
         onRemove={() => removeExercise(open)}
         onBack={() => setOpen(null)}
       />
