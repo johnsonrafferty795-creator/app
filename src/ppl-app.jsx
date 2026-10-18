@@ -182,6 +182,39 @@ function LogRow({ label, children, onDown, onUp, aria }) {
   );
 }
 
+/* A key drawn with the strokes themselves rather than described in words: a
+   bright solid, a dim solid and a dim dash, which is exactly what is on the
+   chart. Only the lines that are actually there get a label. */
+function ChartKey({ sets, reps }) {
+  const line = (label, { dim, dash }) => (
+    <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+      <svg width="18" height="6" aria-hidden="true" style={{ display: "block" }}>
+        <line
+          x1="0"
+          y1="3"
+          x2="18"
+          y2="3"
+          strokeWidth={dim ? 1.5 : 2}
+          strokeDasharray={dash ? "4 3" : "none"}
+          style={{ stroke: dim ? MUTE : TEXT, opacity: dim ? 0.6 : 1 }}
+        />
+      </svg>
+      <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em",
+        textTransform: "uppercase", color: MUTE }}>
+        {label}
+      </span>
+    </span>
+  );
+  return (
+    <div style={{ display: "flex", justifyContent: "center", gap: 14, flexWrap: "wrap",
+      marginTop: 2 }}>
+      {line("Weight", {})}
+      {sets ? line("Sets", { dim: true }) : null}
+      {reps ? line("Reps", { dim: true, dash: true }) : null}
+    </div>
+  );
+}
+
 /* the sets logged on a given day, if any were */
 const setsOn = (setPoints, day) => {
   const hit = setPoints.find((p) => p.d === day);
@@ -253,9 +286,12 @@ function Overload({ name, hist, group, onGroup, onLog, onDrop, onRemove, onBack 
               second={setPoints}
               third={repPoints}
             />
+            {(setPoints.length > 0 || repPoints.length > 0) && (
+              <ChartKey sets={setPoints.length > 0} reps={repPoints.length > 0} />
+            )}
             {/* nothing is said about tapping the line; tapping it says it */}
             <div style={{ fontSize: 14, fontWeight: 700, color: MUTE, minHeight: 18,
-              textAlign: "center" }}>
+              textAlign: "center", marginTop: 4 }}>
               {picked != null
                 ? `${shortDate(points[picked].d)} · ${points[picked].v}kg${
                     setsOn(setPoints, points[picked].d) != null
