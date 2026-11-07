@@ -250,7 +250,7 @@ function Overload({ name, hist, group, onGroup, onLog, onDrop, onRemove, onBack 
 
 
   return (
-    <div className="pad-nav" style={{ fontFamily: BODY, color: TEXT, background: BG, minHeight: "100vh" }}>
+    <div className="pad-nav hard" style={{ fontFamily: BODY, color: TEXT, background: BG, minHeight: "100vh" }}>
       <div className="cut" style={{ background: INK, padding: "14px 16px 26px" }}>
         <Btn
           plain
@@ -935,7 +935,7 @@ export default function GothamApp() {
 
   return (
     <div
-      className="pad-nav"
+      className="pad-nav hard"
       style={{ fontFamily: BODY, color: TEXT, background: BG, minHeight: "100vh",
         WebkitTextSizeAdjust: "100%" }}
     >

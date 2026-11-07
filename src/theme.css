@@ -242,3 +242,14 @@ input::placeholder {
 :root[data-theme="penthouse"] .cut {
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - 22px), calc(100% - 22px) 100%, 0 100%);
 }
+
+/* ---- hard edges ----
+ * Cut stone rather than moulded plastic: nothing in the Gotham tracker is
+ * rounded. It has to beat the radii the shared components set on themselves,
+ * hence the !important, and it is scoped to that app's own roots so the
+ * original tracker keeps the softened corners it was given.
+ */
+.hard,
+.hard * {
+  border-radius: 0 !important;
+}
