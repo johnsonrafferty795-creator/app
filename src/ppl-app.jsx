@@ -251,12 +251,16 @@ function Overload({ name, hist, group, onGroup, onLog, onDrop, onRemove, onBack 
 
   return (
     <div className="pad-nav hard" style={{ fontFamily: BODY, color: TEXT, background: BG, minHeight: "100vh" }}>
+      {/* The first screen: the name, the graph and the keys to log with. What
+          follows it is pushed past the fold by the screenful, so no heading
+          sits half-visible at the bottom edge whatever height the graph takes. */}
+      <div className="screenful">
       <div className="cut" style={{ background: INK, padding: "14px 16px 26px" }}>
         <Btn
           plain
           onClick={onBack}
-          style={{ background: "transparent", color: TEXT, border: `1px solid ${RULE}`,
-            fontSize: 13, padding: "6px 11px", marginBottom: 12 }}
+          style={{ background: "transparent", color: TEXT, border: "none",
+            fontSize: 13, padding: "6px 2px", marginBottom: 12 }}
         >
           ← All exercises
         </Btn>
@@ -362,7 +366,10 @@ function Overload({ name, hist, group, onGroup, onLog, onDrop, onRemove, onBack 
             Log
           </Btn>
         </div>
+      </div>
+      </div>
 
+      <div style={{ padding: "0 16px" }}>
         {entries.length > 0 && (
           <div style={{ marginTop: 22 }}>
             <SectionLabel style={{ marginBottom: 8, textAlign: "center" }}>
@@ -997,6 +1004,9 @@ export default function GothamApp() {
       {/* ---------------- MONTH ---------------- */}
       {tab === "month" && (
         <div>
+          {/* The first screen: the month and its three tracks. Goal and Look
+              are pushed past the fold by the screenful. */}
+          <div className="screenful">
           <div className="cut" style={{ background: INK, padding: "16px 16px 26px" }}>
             <div style={{ fontFamily: DISPLAY, fontSize: 34, fontWeight: 800, lineHeight: 1,
               textTransform: "uppercase", letterSpacing: "-0.02em", textAlign: "center" }}>
@@ -1070,8 +1080,11 @@ export default function GothamApp() {
                 </div>
               );
             })}
+          </div>
+          </div>
 
-            <div style={{ marginTop: 18, borderTop: `1px solid ${RULE}`, paddingTop: 14 }}>
+          <div style={{ padding: "0 16px" }}>
+            <div style={{ borderTop: `1px solid ${RULE}`, paddingTop: 14 }}>
               <SectionLabel style={{ marginBottom: 8, textAlign: "center" }}>Goal</SectionLabel>
               <div style={{ display: "flex", gap: 6 }}>
                 {Object.entries(GOALS).map(([k, g]) => {

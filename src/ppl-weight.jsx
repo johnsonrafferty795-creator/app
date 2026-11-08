@@ -49,6 +49,10 @@ export function WeightScreen({ weights, onSave }) {
 
   return (
     <div>
+      {/* The first screen: the figure, the graph and the keys. Recent is
+          pushed past the fold by the screenful rather than by guessed-at
+          padding, so it stays out of sight however tall the graph is. */}
+      <div className="screenful">
       <div className="cut" style={{ background: INK, padding: "16px 16px 26px" }}>
         <div style={{ fontFamily: DISPLAY, fontSize: 34, fontWeight: 800, lineHeight: 1,
           textTransform: "uppercase", letterSpacing: "-0.02em", textAlign: "center" }}>
@@ -111,7 +115,10 @@ export function WeightScreen({ weights, onSave }) {
             Update
           </Btn>
         </div>
+      </div>
+      </div>
 
+      <div style={{ padding: "0 16px" }}>
         {points.length > 0 && (
           <div style={{ marginTop: 22 }}>
             <SectionLabel style={{ marginBottom: 8, textAlign: "center" }}>Recent</SectionLabel>

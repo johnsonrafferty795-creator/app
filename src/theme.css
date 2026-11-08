@@ -253,3 +253,14 @@ input::placeholder {
 .hard * {
   border-radius: 0 !important;
 }
+
+/* ---- one screen, then the next ----
+ * A page's first screen holds exactly what belongs on it, so the section
+ * underneath starts below the fold instead of a centimetre above it. Tying
+ * the block to the viewport rather than guessing at padding means it holds
+ * whatever height the graph happens to take that day.
+ */
+.screenful {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
