@@ -91,8 +91,8 @@ export function WeightScreen({ weights, onSave }) {
           </div>
         )}
 
-        <div className="orn" style={{ border: `1px solid ${RULE}`, borderRadius: 14,
-          padding: "14px", marginTop: 14 }}>
+        {/* the same unframed treatment as the keys on an exercise */}
+        <div style={{ padding: 0, marginTop: 14 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
             gap: 12 }}>
             <Btn aria="Less weight" onClick={() => bump(-0.1)} style={key}>&minus;</Btn>

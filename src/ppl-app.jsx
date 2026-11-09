@@ -315,8 +315,9 @@ function Overload({ name, hist, group, onGroup, onLog, onDrop, onRemove, onBack 
           </div>
         )}
 
-        <div className="orn" style={{ border: `1px solid ${RULE}`, borderRadius: 14,
-          padding: "6px 14px 14px", marginTop: 6 }}>
+        {/* no frame around the keys: the rows and the Log block hold the
+            shape on their own */}
+        <div style={{ padding: "6px 0 0", marginTop: 6 }}>
           <LogRow
             label="Weight"
             aria="weight"
