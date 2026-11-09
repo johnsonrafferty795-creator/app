@@ -277,7 +277,7 @@ function Overload({ name, hist, group, onGroup, onLog, onDrop, onRemove, onBack 
         )}
       </div>
 
-      <div style={{ padding: "14px 16px 0" }}>
+      <div className="screenful-body" style={{ padding: "14px 16px 0" }}>
         {points.length > 0 ? (
           <div>
             <TrendChart
@@ -1006,7 +1006,7 @@ export default function GothamApp() {
         <div>
           {/* The first screen: the month and its three tracks. Goal and Look
               are pushed past the fold by the screenful. */}
-          <div className="screenful">
+          <div className="screenful under-nav">
           <div className="cut" style={{ background: INK, padding: "16px 16px 26px" }}>
             <div style={{ fontFamily: DISPLAY, fontSize: 34, fontWeight: 800, lineHeight: 1,
               textTransform: "uppercase", letterSpacing: "-0.02em", textAlign: "center" }}>
@@ -1038,7 +1038,7 @@ export default function GothamApp() {
             </div>
           </div>
 
-          <div style={{ padding: "14px 16px 0" }}>
+          <div className="screenful-body" style={{ padding: "14px 16px 0" }}>
             {tracks.map((track) => {
               const done = inMonth(track.key);
               const rested = restIn(track.key);

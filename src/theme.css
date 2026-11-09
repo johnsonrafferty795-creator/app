@@ -259,8 +259,28 @@ input::placeholder {
  * underneath starts below the fold instead of a centimetre above it. Tying
  * the block to the viewport rather than guessing at padding means it holds
  * whatever height the graph happens to take that day.
+ *
+ * Whatever is left over after the graph is split evenly above and below
+ * what sits under the header, so a short graph reads as balanced rather
+ * than as a page that has run out halfway down. On the pages that carry
+ * the bar along the bottom, the air is measured against the strip the bar
+ * leaves free, not the whole screen - otherwise the middle of the screen
+ * and the middle of what you can see are not the same place.
  */
 .screenful {
   min-height: 100vh;
   min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.screenful.under-nav {
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+}
+
+.screenful-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }

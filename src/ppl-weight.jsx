@@ -52,7 +52,7 @@ export function WeightScreen({ weights, onSave }) {
       {/* The first screen: the figure, the graph and the keys. Recent is
           pushed past the fold by the screenful rather than by guessed-at
           padding, so it stays out of sight however tall the graph is. */}
-      <div className="screenful">
+      <div className="screenful under-nav">
       <div className="cut" style={{ background: INK, padding: "16px 16px 26px" }}>
         <div style={{ fontFamily: DISPLAY, fontSize: 34, fontWeight: 800, lineHeight: 1,
           textTransform: "uppercase", letterSpacing: "-0.02em", textAlign: "center" }}>
@@ -71,7 +71,7 @@ export function WeightScreen({ weights, onSave }) {
         </div>
       </div>
 
-      <div style={{ padding: "14px 16px 0" }}>
+      <div className="screenful-body" style={{ padding: "14px 16px 0" }}>
         {points.length > 0 && (
           <div>
             <TrendChart
